@@ -295,8 +295,9 @@ def generate_design():
             logger.info(f"Job {job_id}: Using erayyavuz/interior-ai model (Cost: $0.25 per generation)")
             
             # Erayyavuz model-specific parameters
-            # Get the absolute URL to the image file
-            image_url = f"http://localhost:5000/uploads/{job_id}.png"
+            # Get the absolute URL to the image file (production-ready)
+            base_url = os.getenv('BACKEND_URL', 'http://localhost:5000')
+            image_url = f"{base_url}/uploads/{job_id}.png"
             
             replicate_input = {
                 "image": image_url,
