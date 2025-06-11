@@ -30,7 +30,6 @@ services:
       - .env
     volumes:
       - uploads:/app/uploads
-      - job_data:/app/uploads/jobs
     networks:
       - renovaai-network
     restart: unless-stopped
@@ -51,7 +50,6 @@ services:
 
 volumes:
   uploads:
-  job_data:
   frontend_build:
 
 networks:

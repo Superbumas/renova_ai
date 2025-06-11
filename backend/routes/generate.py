@@ -61,7 +61,6 @@ def generate_design():
         image_processor = current_app.config['IMAGE_PROCESSOR']
         replicate_client = current_app.config['REPLICATE_CLIENT']
         job_storage = current_app.config['JOB_STORAGE']
-        save_job = current_app.config['SAVE_JOB']
         
         # Initialize spatial layout engine
         spatial_engine = SpatialLayoutEngine()
@@ -252,30 +251,27 @@ def generate_design():
         
         # Store job in progress
         job_storage[job_id] = {
-            'job_id': job_id,
             'status': 'processing',
             'mode': mode,
             'style': style,
-            'room_type': room_type,
-            'model_selection': model_selection,
-            'model_name': model_name,
-            'model_cost': model_cost,
-            'timestamp': datetime.now().isoformat(),
             'ai_intensity': ai_intensity,
-            'high_quality': high_quality,
             'num_renders': num_renders,
-            'has_measurements': measurements is not None,
-            'prompt': positive_prompt,
-            'negative_prompt': negative_prompt,
+            'high_quality': high_quality,
+            'private_render': private_render,
+            'advanced_mode': advanced_mode,
+            'model_selection': model_selection,  # Store model selection
+            'model_name': model_name,            # Store model friendly name
+            'model_cost': model_cost,            # Store model cost
             'inspiration_image': inspiration_image,
             'inspiration_style_description': inspiration_style_description,
+            'room_type': room_type,
+            'prompt': positive_prompt,
+            'negative_prompt': negative_prompt,
+            'spatial_layout': spatial_layout_data,
             'room_dimensions': room_dimensions,
             'result_url': None,
             'error': None
         }
-        
-        # Save job to persistent storage
-        save_job(job_id, job_storage[job_id])
         
         # Process image for AI generation
         logger.info(f"Job {job_id}: Processing image for AI generation...")
@@ -372,9 +368,6 @@ def generate_design():
             job_storage[job_id]['prediction_id'] = prediction.id
             job_storage[job_id]['model_version'] = model_version
             
-            # Save updated job to persistent storage
-            save_job(job_id, job_storage[job_id])
-            
             logger.info(f"Job {job_id}: Replicate prediction started with ID: {prediction.id}")
             
             return jsonify({
@@ -398,8 +391,6 @@ def generate_design():
                     'status': 'failed',
                     'error': 'Non-English characters detected in prompt. Please use English style names only.'
                 })
-                # Save updated job to persistent storage
-                save_job(job_id, job_storage[job_id])
                 return jsonify({
                     'job_id': job_id,
                     'status': 'failed',
@@ -411,8 +402,6 @@ def generate_design():
                 'status': 'failed',
                 'error': f'Prediction failed: {error_message}'
             })
-            # Save updated job to persistent storage
-            save_job(job_id, job_storage[job_id])
             return jsonify({
                 'job_id': job_id,
                 'status': 'failed',
@@ -556,7 +545,6 @@ def refine_design():
         image_processor = current_app.config['IMAGE_PROCESSOR']
         replicate_client = current_app.config['REPLICATE_CLIENT']
         job_storage = current_app.config['JOB_STORAGE']
-        save_job = current_app.config['SAVE_JOB']
         
         data = request.get_json()
         
