@@ -296,7 +296,7 @@ def generate_design():
             
             # Erayyavuz model-specific parameters
             # Get the absolute URL to the image file (production-ready)
-            base_url = os.getenv('BACKEND_URL', 'http://localhost:5000')
+            base_url = os.getenv('BACKEND_URL', 'https://renova.andrius.cloud')
             image_url = f"{base_url}/uploads/{job_id}.png"
             
             replicate_input = {

@@ -40,6 +40,8 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
+      args:
+        - REACT_APP_API_BASE_URL=https://renova.andrius.cloud
     volumes:
       - frontend_build:/app/build
     networks:

@@ -39,7 +39,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins=[os.getenv('FRONTEND_URL', 'http://localhost:3000')])
+CORS(app, origins=[os.getenv('FRONTEND_URL', 'https://renova.andrius.cloud')])
 
 # Configure upload settings
 app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_CONTENT_LENGTH', 16777216))  # 16MB
