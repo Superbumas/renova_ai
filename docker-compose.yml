@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=development
+      - FLASK_DEBUG=True
+    env_file:
+      - .env
+    volumes:
+      - ./backend:/app
+      - uploads:/app/uploads
+    networks:
+      - renovaai-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_BASE_URL=http://localhost:5000
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - renovaai-network
+    depends_on:
+      - backend
+
+volumes:
+  uploads:
+
+networks:
+  renovaai-network:
+    driver: bridge 
