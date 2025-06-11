@@ -15,6 +15,8 @@ from datetime import datetime
 import cv2
 import numpy as np
 from io import BytesIO
+import json
+import pathlib
 
 # Import our modular services
 from services.ai_service import AIService
@@ -104,8 +106,48 @@ blueprint_service = BlueprintService(openai_client)
 # Create uploads directory
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# In-memory storage for job tracking
+# Persistent job storage directory
+JOB_STORAGE_DIR = os.path.join(app.config['UPLOAD_FOLDER'], 'jobs')
+os.makedirs(JOB_STORAGE_DIR, exist_ok=True)
+
+# In-memory storage for job tracking with persistence
 job_storage = {}
+
+# Load existing jobs from storage
+def load_jobs_from_storage():
+    try:
+        for job_file in pathlib.Path(JOB_STORAGE_DIR).glob('*.json'):
+            try:
+                with open(job_file, 'r') as f:
+                    job_data = json.load(f)
+                    job_id = job_data.get('job_id')
+                    if job_id:
+                        job_storage[job_id] = job_data
+                        logger.info(f"Loaded job {job_id} from storage")
+            except Exception as e:
+                logger.error(f"Error loading job file {job_file}: {str(e)}")
+        
+        logger.info(f"Loaded {len(job_storage)} jobs from storage")
+    except Exception as e:
+        logger.error(f"Error loading jobs from storage: {str(e)}")
+
+# Save job to persistent storage
+def save_job_to_storage(job_id, job_data):
+    try:
+        # Make sure job_id is included in the data
+        job_data['job_id'] = job_id
+        
+        # Save to file
+        job_file = os.path.join(JOB_STORAGE_DIR, f"{job_id}.json")
+        with open(job_file, 'w') as f:
+            json.dump(job_data, f)
+        
+        logger.info(f"Saved job {job_id} to storage")
+    except Exception as e:
+        logger.error(f"Error saving job {job_id} to storage: {str(e)}")
+
+# Load existing jobs
+load_jobs_from_storage()
 
 # Make services available to blueprints
 app.config['AI_SERVICE'] = ai_service
@@ -114,6 +156,7 @@ app.config['BLUEPRINT_SERVICE'] = blueprint_service
 app.config['REPLICATE_CLIENT'] = replicate_client
 app.config['OPENAI_CLIENT'] = openai_client
 app.config['JOB_STORAGE'] = job_storage
+app.config['SAVE_JOB'] = save_job_to_storage
 
 # Register blueprints
 app.register_blueprint(generate_bp, url_prefix='/api')
@@ -322,9 +365,22 @@ def get_results(job_id):
     
     job_storage = current_app.config['JOB_STORAGE']
     replicate_client = current_app.config['REPLICATE_CLIENT']
+    save_job = current_app.config['SAVE_JOB']
     
+    # Try to load job from file if not in memory
     if job_id not in job_storage:
-        return jsonify({'error': 'Job not found'}), 404
+        try:
+            job_file = os.path.join(JOB_STORAGE_DIR, f"{job_id}.json")
+            if os.path.exists(job_file):
+                with open(job_file, 'r') as f:
+                    job_storage[job_id] = json.load(f)
+                logger.info(f"Loaded job {job_id} from storage file")
+            else:
+                logger.warning(f"Job {job_id} not found in memory or storage")
+                return jsonify({'error': 'Job not found'}), 404
+        except Exception as e:
+            logger.error(f"Error loading job {job_id} from file: {str(e)}")
+            return jsonify({'error': 'Job not found'}), 404
     
     job = job_storage[job_id]
     
@@ -345,6 +401,8 @@ def get_results(job_id):
                     'timestamp': datetime.now().isoformat()
                 })
                 logger.info(f"Job {job_id} completed successfully")
+                # Save updated job to storage
+                save_job(job_id, job_storage[job_id])
                 
             elif prediction.status == 'failed':
                 # Update job with failure
@@ -355,6 +413,8 @@ def get_results(job_id):
                     'timestamp': datetime.now().isoformat()
                 })
                 logger.error(f"Job {job_id} failed: {error_msg}")
+                # Save updated job to storage
+                save_job(job_id, job_storage[job_id])
                 
             elif prediction.status == 'canceled':
                 job_storage[job_id].update({
@@ -363,6 +423,8 @@ def get_results(job_id):
                     'timestamp': datetime.now().isoformat()
                 })
                 logger.warning(f"Job {job_id} was canceled")
+                # Save updated job to storage
+                save_job(job_id, job_storage[job_id])
                 
             # If still processing, keep status as is
             
