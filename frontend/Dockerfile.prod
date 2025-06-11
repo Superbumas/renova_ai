@@ -6,11 +6,8 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies with legacy-peer-deps to handle TypeScript conflicts
-RUN npm ci --legacy-peer-deps
-
-# Install specific TypeScript version compatible with react-scripts
-RUN npm install --save-dev --legacy-peer-deps typescript@4.9.5
+# Install dependencies
+RUN npm ci --only=production
 
 # Copy source code
 COPY . .
