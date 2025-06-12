@@ -28,11 +28,12 @@ class DatabaseService:
             job = Job(**job_data)
             session.add(job)
             session.commit()
-            return job.to_dict()
+            session.refresh(job)
+            return job
         except SQLAlchemyError as e:
-            session.rollback()
             logger.error(f"Error creating job: {str(e)}")
-            raise
+            session.rollback()
+            return None
         finally:
             session.close()
 
@@ -41,10 +42,10 @@ class DatabaseService:
         session = self.Session()
         try:
             job = session.query(Job).filter_by(id=job_id).first()
-            return job.to_dict() if job else None
+            return job
         except SQLAlchemyError as e:
             logger.error(f"Error getting job {job_id}: {str(e)}")
-            raise
+            return None
         finally:
             session.close()
 
@@ -60,11 +61,12 @@ class DatabaseService:
                 setattr(job, key, value)
             
             session.commit()
-            return job.to_dict()
+            session.refresh(job)
+            return job
         except SQLAlchemyError as e:
             session.rollback()
             logger.error(f"Error updating job {job_id}: {str(e)}")
-            raise
+            return None
         finally:
             session.close()
 
@@ -73,10 +75,10 @@ class DatabaseService:
         session = self.Session()
         try:
             jobs = session.query(Job).all()
-            return [job.to_dict() for job in jobs]
+            return jobs
         except SQLAlchemyError as e:
             logger.error(f"Error listing jobs: {str(e)}")
-            raise
+            return []
         finally:
             session.close()
 
@@ -93,6 +95,6 @@ class DatabaseService:
         except SQLAlchemyError as e:
             session.rollback()
             logger.error(f"Error deleting job {job_id}: {str(e)}")
-            raise
+            return False
         finally:
             session.close() 

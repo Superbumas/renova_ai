@@ -3,6 +3,8 @@ import cv2
 import numpy as np
 from PIL import Image as PILImage
 from typing import Optional
+import io
+import base64
 
 logger = logging.getLogger(__name__)
 
@@ -216,4 +218,32 @@ class ImageProcessor:
                 'format': 'unknown',
                 'has_transparency': False,
                 'error': str(e)
-            } 
+            }
+    
+    def process_image(self, image):
+        """
+        Process the input image for AI generation.
+        Returns the processed image as a base64 string.
+        """
+        try:
+            # Convert image to RGB if it's not
+            if image.mode != 'RGB':
+                image = image.convert('RGB')
+            
+            # Resize image if needed (maintain aspect ratio)
+            max_size = 1024
+            if max(image.size) > max_size:
+                ratio = max_size / max(image.size)
+                new_size = tuple(int(dim * ratio) for dim in image.size)
+                image = image.resize(new_size, PILImage.Resampling.LANCZOS)
+            
+            # Convert to base64
+            buffered = io.BytesIO()
+            image.save(buffered, format="PNG")
+            img_str = base64.b64encode(buffered.getvalue()).decode()
+            
+            return f"data:image/png;base64,{img_str}"
+            
+        except Exception as e:
+            logger.error(f"Error processing image: {str(e)}")
+            raise 
