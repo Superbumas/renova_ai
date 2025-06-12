@@ -161,8 +161,8 @@ class PromptEngine:
                 style, room_type, measurements, inspiration_description, room_analysis
             )
         
-        # Generate negative prompt for structure preservation
-        negative_prompt = self._generate_negative_prompt(mode, ai_intensity, measurements)
+        # Generate negative prompt for structure preservation and functional correctness
+        negative_prompt = self._generate_negative_prompt(mode, ai_intensity, measurements, room_type)
         
         logger.info(f"Generated {mode} prompt: {base_prompt[:100]}...")
         logger.info(f"Generated negative prompt: {negative_prompt[:80]}...")
@@ -211,6 +211,12 @@ class PromptEngine:
         
         if measurements:
             base_prompt += f"properly scaled for {max_width:.1f}m x {max_width-0.5:.1f}m space. "
+        
+        # Add functional correctness requirements for kitchen
+        if room_type.lower() in ["kitchen", "kitchenette"]:
+            base_prompt += "FUNCTIONAL CORRECTNESS: exactly one faucet per sink, single cohesive range hood over stove, "
+            base_prompt += "logical placement of appliances, proper kitchen work triangle between sink-stove-refrigerator, "
+            base_prompt += "realistic fixture quantities and placement, practical counter space. "
         
         # Enhanced quality prompts with ultrarealistic and 8K terms
         base_prompt += "RENDERING QUALITY: accurately scaled for room, perfect proportions and spatial relationships, "
@@ -564,37 +570,64 @@ class PromptEngine:
         
         return " ".join(analysis_parts) if analysis_parts else ""
     
-    def _generate_negative_prompt(self, mode: str, ai_intensity: float, measurements: Optional[List]) -> str:
-        """Generate negative prompt based on Replicate playground settings"""
+    def _generate_negative_prompt(self, mode: str, ai_intensity: float, measurements: Optional[List], room_type: str = 'kitchen') -> str:
+        """Generate negative prompt to preserve structure and ensure functional correctness"""
         
-        # Use the successful negative prompt from Replicate playground as base with quality-focused additions
-        negative_elements = [
-            "lowres", "watermark", "banner", "logo", "watermark", "contactinfo", "text", "deformed", 
-            "blurry", "blur", "out of focus", "out of frame", "surreal", "extra", "ugly", 
-            "upholstered walls", "fabric walls", "plush walls", "mirror", "mirrored", "functional",
-            "grainy", "pixelated", "low resolution", "bad shadows", "poor lighting", "low quality",
-            "unrealistic lighting", "poor composition", "dull colors", "flat lighting", "amateur",
-            "low detail", "simplistic", "bad proportions", "unprofessional", "cartoon", "anime",
-            "drawing", "sketch", "painting", "CGI", "3d render", "poor textures", "underexposed",
-            "overexposed", "clipart", "stock photo", "cropped", "grain", "noise", "artifacts",
-            "jpeg artifacts", "compression artifacts", "glitch", "corrupted", "poor resolution"
+        # Start with quality issues to avoid
+        negative_parts = [
+            "lowres, watermark, banner, logo, watermark, contactinfo, text, deformed",
+            "blurry, blur, out of focus, out of frame, surreal, extra, ugly",
+            "upholstered walls, fabric walls, plush walls, mirror, mirrored, functional",
+            "grainy, pixelated, unrealistic lighting, poor composition, low contrast, muddy colors",
+            "amateur, unprofessional, crooked angles, flat lighting, dull materials, cartoon style",
+            "dark, underexposed, dim, unrealistic architecture, impossible layout, warped",
+            "unrealistic proportions, floating elements, incoherent design, distorted perspective"
         ]
         
-        # Add spatial constraint negatives if we have measurements for a narrow space
-        if measurements:
-            room_analysis = self._analyze_room_dimensions(measurements)
-            if room_analysis['width'] and room_analysis['width'] < 3.0:  # Narrow space
-                negative_elements.extend([
-                    "kitchen island", "center island", "double island"
-                ])
-        
-        # For maximum structure preservation (low AI intensity), add structure preservation
-        if mode == 'redesign' and ai_intensity <= 0.3:
-            negative_elements.extend([
-                "different room layout", "moving walls", "changing windows", "different architecture"
+        # Kitchen-specific functional errors to avoid
+        if room_type.lower() in ["kitchen", "kitchenette"]:
+            negative_parts.extend([
+                "multiple faucets on one sink, duplicate fixtures, too many faucets, multiple range hoods",
+                "illogical fixture placement, duplicate appliances, unrealistic fixture arrangement",
+                "nonsensical plumbing, misaligned fixtures, impractical design, extra taps",
+                "floating fixtures, double faucets, triple faucets, unrealistic kitchen layout",
+                "overlapping countertops, uneven countertops, floating cabinets, misaligned cabinets",
+                "two refrigerators, two stoves, two sinks without justification, unconnected fixtures",
+                "plumbing in impossible locations, fixtures extending through walls or cabinets"
             ])
         
-        return ", ".join(negative_elements)
+        # Structure preservation issues to avoid in redesign mode
+        if mode == 'redesign':
+            # Always avoid certain structural issues
+            negative_parts.append("completely different room shape, impossible architectural changes")
+            
+            # Stronger structure preservation for lower AI intensity
+            if ai_intensity < 0.3:
+                # Very strict - maintain nearly everything
+                negative_parts.extend([
+                    "changed wall layout, moved windows, moved doors, structurally impossible",
+                    "different floor plan, changed ceiling height, moved plumbing fixtures",
+                    "architecturally unrealistic, non-structural changes, structural changes",
+                    "changed window sizes, changed door locations, removed walls, added walls",
+                    "changed room dimensions, altered ceiling features, moved structural elements"
+                ])
+            elif ai_intensity < 0.7:
+                # Moderate - maintain key structural elements
+                negative_parts.extend([
+                    "major structural changes, moved load-bearing walls, impossible window relocations",
+                    "completely different floor plan, unrealistic architectural modifications",
+                    "changed essential room structure, unsafe structural alterations"
+                ])
+            # For high AI intensity, we allow more structural changes, so fewer negative constraints
+        
+        # Add spatial negatives for narrow kitchens
+        if measurements:
+            room_data = self._analyze_room_dimensions(measurements)
+            if room_data.get('max_width', 0) < 3.0 and room_type.lower() in ["kitchen", "kitchenette"]:
+                negative_parts.append("kitchen island, center island, double island, large island")
+        
+        # Join all negative parts with commas
+        return ", ".join(negative_parts)
     
     def get_model_parameters(self, ai_intensity: float, high_quality: bool, mode: str) -> Dict:
         """Get optimized model parameters based on settings"""

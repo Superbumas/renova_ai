@@ -122,6 +122,9 @@ class AIService:
                 positive_prompt = f"{positive_prompt} {structure_preservation}"
             # For high intensity, we omit structure preservation to allow more creative freedom
             
+            # Add functional correctness requirements
+            positive_prompt += " FUNCTIONAL REQUIREMENTS: one sink with one faucet per sink, logical placement of appliances, proper workflow triangle, single hood over stove, appropriate number of fixtures."
+            
         else:  # Design mode
             # Design mode: create from scratch with style guidance but no structural preservation
             positive_prompt = self.prompt_engine._generate_design_prompt(
@@ -131,6 +134,9 @@ class AIService:
                 inspiration_description=inspiration_description,
                 room_analysis=room_analysis
             )
+            
+            # Add functional correctness requirements for design mode too
+            positive_prompt += " FUNCTIONAL REQUIREMENTS: one sink with one faucet per sink, logical placement of appliances, proper workflow triangle, single hood over stove, appropriate number of fixtures."
         
         # Extract style-specific keywords that enhance quality
         style_keywords = self._get_style_keywords(style)
@@ -168,11 +174,17 @@ class AIService:
         negative_prompt += "grainy, pixelated, unrealistic lighting, poor composition, low contrast, muddy colors, "
         negative_prompt += "amateur, unprofessional, crooked angles, flat lighting, dull materials, cartoon style, "
         negative_prompt += "dark, underexposed, dim, unrealistic architecture, impossible layout, warped, "
-        negative_prompt += "unrealistic proportions, floating elements, incoherent design, distorted perspective"
+        negative_prompt += "unrealistic proportions, floating elements, incoherent design, distorted perspective, "
+        
+        # Explicitly address duplicate fixture issues
+        negative_prompt += "multiple faucets on one sink, duplicate fixtures, too many faucets, multiple range hoods, "
+        negative_prompt += "illogical fixture placement, duplicate appliances, unrealistic fixture arrangement, "
+        negative_prompt += "nonsensical plumbing, misaligned fixtures, impractical design, extra taps, "
+        negative_prompt += "floating fixtures, double faucets, triple faucets, unrealistic kitchen layout, "
         
         # If in redesign mode with medium-high preservation, add strong negative prompts to preserve structure
         if mode == 'redesign' and ai_intensity < 0.7:
-            negative_prompt += ", changed wall layout, moved windows, moved doors, structurally impossible, "
+            negative_prompt += "changed wall layout, moved windows, moved doors, structurally impossible, "
             negative_prompt += "different floor plan, changed ceiling height, moved plumbing fixtures, "
             negative_prompt += "architecturally unrealistic, non-structural changes, structural changes"
         
