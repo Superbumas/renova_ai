@@ -90,140 +90,139 @@ class AIService:
         # Sanitize room_type to ensure it's ASCII
         room_type = self._sanitize_prompt(room_type)
         
-        try:
-            # First try to use the PromptEngine for optimal prompts
-            try:
-                positive_prompt, negative_prompt = self.prompt_engine.generate_comprehensive_prompt(
-                    mode=mode,
-                    style=style,
-                    room_type=room_type,
-                    ai_intensity=ai_intensity,
-                    measurements=measurements,
-                    inspiration_description=inspiration_description,
-                    room_analysis=room_analysis
+        # Use prompt engine to generate comprehensive base prompt
+        if mode == 'redesign':
+            # For redesign, we add spatial preservation as well
+            base_engine = self.prompt_engine
+            
+            # Generate the main prompt
+            positive_prompt = base_engine._generate_redesign_prompt(
+                style=style,
+                room_type=room_type,
+                ai_intensity=ai_intensity,
+                measurements=measurements,
+                inspiration_description=inspiration_description,
+                room_analysis=room_analysis
+            )
+            
+            # Generate structural preservation prompts
+            if ai_intensity < 0.3:
+                # Low intensity: very strict structural preservation
+                structure_preservation = base_engine._generate_structural_preservation(
+                    intensity_level="strict",
+                    measurements=measurements
                 )
+                positive_prompt = f"{positive_prompt} {structure_preservation}"
+            elif ai_intensity < 0.7:
+                # Medium intensity: balanced preservation
+                structure_preservation = base_engine._generate_structural_preservation(
+                    intensity_level="balanced",
+                    measurements=measurements
+                )
+                positive_prompt = f"{positive_prompt} {structure_preservation}"
+            # For high intensity, we omit structure preservation to allow more creative freedom
             
-            # Add spatial constraints if available
-                if spatial_constraints and positive_prompt:
-                    if spatial_constraints.get('prompt_additions'):
-                        spatial_additions = ", ".join(spatial_constraints['prompt_additions'])
-                        positive_prompt = f"{positive_prompt}, {spatial_additions}"
-                    
-                    if spatial_constraints.get('negative_prompts') and negative_prompt:
-                        spatial_negatives = ", ".join(spatial_constraints['negative_prompts'])
-                        negative_prompt = f"{negative_prompt}, {spatial_negatives}"
+        else:  # Design mode
+            # Design mode: create from scratch with style guidance but no structural preservation
+            positive_prompt = self.prompt_engine._generate_design_prompt(
+                style=style,
+                room_type=room_type,
+                measurements=measurements,
+                inspiration_description=inspiration_description,
+                room_analysis=room_analysis
+            )
+        
+        # Extract style-specific keywords that enhance quality
+        style_keywords = self._get_style_keywords(style)
+        
+        # Add style-specific keywords for better quality
+        positive_prompt = f"{positive_prompt} with {', '.join(style_keywords[:5])}"
+        
+        # Add inspiration elements if available
+        if inspiration_description:
+            # Keep inspiration description concise but extract key style elements
+            words = inspiration_description.split()
+            
+            # Extract style keywords that enhance quality
+            quality_keywords = [word for word in words if word.lower() in [
+                "luxury", "elegant", "sophisticated", "premium", "high-end", "designer",
+                "modern", "contemporary", "minimalist", "classic", "traditional",
+                "rustic", "industrial", "scandinavian", "bohemian", "coastal",
+                "marble", "wood", "brass", "gold", "steel", "glass", "leather",
+                "chandelier", "pendant", "recessed", "hidden", "integrated"
+            ]]
+            
+            # Prioritize quality keywords in the inspiration
+            if quality_keywords:
+                quality_terms = " ".join(quality_keywords)
+                inspiration_elements = f"{quality_terms} with " + ' '.join(words[:30])
+            else:
+                inspiration_elements = ' '.join(words[:50])
                 
-                # If successful, return the generated prompts
-                logger.info(f"Using PromptEngine generated prompts with length: {len(positive_prompt)}")
-                
-                # Apply style-specific quality enhancements
-                positive_prompt = self.enhance_quality_for_style(positive_prompt, style)
-                logger.info(f"Enhanced prompt with style-specific quality terms for {style}")
-                
-                # Final sanitization to ensure only ASCII characters
-                positive_prompt = self._sanitize_prompt(positive_prompt)
-                negative_prompt = self._sanitize_prompt(negative_prompt)
-                
-                logger.info(f"Generated Replicate-style prompt with length: {len(positive_prompt)}")
-                
-                return positive_prompt, negative_prompt
-                
-            except Exception as e:
-                logger.warning(f"PromptEngine failed, falling back to direct prompt generation: {str(e)}")
-            
-            # If PromptEngine fails, use the structure from the Replicate playground example
-            # Base from Replicate.com playground example for a prabangus kitchen
-            positive_prompt = f"Beautiful {style.lower()} {room_type} interior design, professional interior design, "
-            positive_prompt += "realistic lighting and materials, "
-            
-            # Add spatial constraints if available
-            max_width = None
-            if measurements:
-                # Extract width from measurements
-                for m in measurements:
-                    if isinstance(m, dict) and m.get('type') in ['wall', 'room_width']:
-                        value = m.get('realMeasurement', 0)
-                        max_width = value
-                        break
-                
-                if max_width and max_width < 3.2:
-                    positive_prompt += f"narrow galley {room_type} {max_width:.1f}m wide, "
-                    positive_prompt += "linear countertop arrangement, efficient space utilization, no center island possible, "
-                elif max_width:
-                    positive_prompt += f"{room_type} {max_width:.1f}m x {max_width-0.5:.1f}m space, "
-            
-            # Add workflow elements
-            positive_prompt += "streamlined workflow, realistic proportions "
-            
-            if max_width:
-                positive_prompt += f"for {max_width:.1f}m x {max_width-0.5:.1f}m space, "
-            
-            # Enhanced professional quality elements for superior results
-            positive_prompt += "accurately scaled for room, perfect proportions and spatial relationships, "
-            positive_prompt += "following professional interior design standards, ultra high quality interior design, "
-            positive_prompt += "photorealistic rendering, intricate material textures, cinematic lighting with soft shadows, "
-            positive_prompt += "professional architectural photography, magazine quality presentation, "
-            positive_prompt += "crystal clear details, hyper-realistic materials, award-winning design, "
-            positive_prompt += "8K resolution, ultrarealistic, ultra detailed, high definition, high resolution, "
-            positive_prompt += "extreme detail, photographic, perfect lighting, professional color grading, "
-            positive_prompt += "masterful composition, ray tracing, physically-based rendering, "
-            positive_prompt += f"luxury {style.lower()} interior design showcase"
-            
-            # Add inspiration elements if available
-            if inspiration_description:
-                # Keep inspiration description concise but extract key style elements
-                words = inspiration_description.split()
-                
-                # Extract style keywords that enhance quality
-                quality_keywords = [word for word in words if word.lower() in [
-                    "luxury", "elegant", "sophisticated", "premium", "high-end", "designer",
-                    "modern", "contemporary", "minimalist", "classic", "traditional",
-                    "rustic", "industrial", "scandinavian", "bohemian", "coastal",
-                    "marble", "wood", "brass", "gold", "steel", "glass", "leather",
-                    "chandelier", "pendant", "recessed", "hidden", "integrated"
-                ]]
-                
-                # Prioritize quality keywords in the inspiration
-                if quality_keywords:
-                    quality_terms = " ".join(quality_keywords)
-                    inspiration_elements = f"{quality_terms} with " + ' '.join(words[:30])
-                else:
-                    inspiration_elements = ' '.join(words[:50])
-                    
-                positive_prompt = f"{positive_prompt} with {inspiration_elements}"
-            
-            # Build negative prompt using Replicate playground example with quality enhancements
-            negative_prompt = "lowres, watermark, banner, logo, watermark, contactinfo, text, deformed, "
-            negative_prompt += "blurry, blur, out of focus, out of frame, surreal, extra, ugly, "
-            negative_prompt += "upholstered walls, fabric walls, plush walls, mirror, mirrored, functional, "
-            negative_prompt += "grainy, pixelated, unrealistic lighting, poor composition, low contrast, muddy colors, "
-            negative_prompt += "amateur, unprofessional, crooked angles, flat lighting, dull materials, cartoon style, "
-            negative_prompt += "bad shadows, unrealistic reflections, skewed perspective, disproportionate elements"
-            
-            # Add spatial negatives for narrow kitchens
-            if max_width and max_width < 3.0:
-                negative_prompt += ", kitchen island, center island, double island"
-            
-            # For maximum structure preservation (low AI intensity)
-            if mode == 'redesign' and ai_intensity <= 0.3:
-                negative_prompt += ", different room layout, moving walls, changing windows, different architecture"
-            
-            # Apply style-specific quality enhancements
-            positive_prompt = self.enhance_quality_for_style(positive_prompt, style)
-            logger.info(f"Enhanced prompt with style-specific quality terms for {style}")
-            
-            # Final sanitization to ensure only ASCII characters
-            positive_prompt = self._sanitize_prompt(positive_prompt)
-            negative_prompt = self._sanitize_prompt(negative_prompt)
-            
-            logger.info(f"Generated Replicate-style prompt with length: {len(positive_prompt)}")
-            
-            return positive_prompt, negative_prompt
-            
-        except Exception as e:
-            logger.error(f"Error generating comprehensive prompt: {str(e)}")
-            # Fallback to basic prompt
-            return self._get_basic_prompt(style, room_type), self._get_basic_negative_prompt()
+            positive_prompt = f"{positive_prompt} with {inspiration_elements}"
+        
+        # Build negative prompt using Replicate playground example with quality enhancements
+        negative_prompt = "lowres, watermark, banner, logo, watermark, contactinfo, text, deformed, "
+        negative_prompt += "blurry, blur, out of focus, out of frame, surreal, extra, ugly, "
+        negative_prompt += "upholstered walls, fabric walls, plush walls, mirror, mirrored, functional, "
+        negative_prompt += "grainy, pixelated, unrealistic lighting, poor composition, low contrast, muddy colors, "
+        negative_prompt += "amateur, unprofessional, crooked angles, flat lighting, dull materials, cartoon style, "
+        negative_prompt += "dark, underexposed, dim, unrealistic architecture, impossible layout, warped, "
+        negative_prompt += "unrealistic proportions, floating elements, incoherent design, distorted perspective"
+        
+        # If in redesign mode with medium-high preservation, add strong negative prompts to preserve structure
+        if mode == 'redesign' and ai_intensity < 0.7:
+            negative_prompt += ", changed wall layout, moved windows, moved doors, structurally impossible, "
+            negative_prompt += "different floor plan, changed ceiling height, moved plumbing fixtures, "
+            negative_prompt += "architecturally unrealistic, non-structural changes, structural changes"
+        
+        # Log the prompts for debugging
+        logger.info(f"Generated {mode} prompt: {positive_prompt[:100]}...")
+        logger.info(f"Generated negative prompt: {negative_prompt[:80]}...")
+        
+        return positive_prompt, negative_prompt
+        
+    def _get_style_keywords(self, style: str) -> List[str]:
+        """Get style-specific keywords for enhancing prompt quality"""
+        style_keywords = {
+            'Modern': [
+                "sleek surfaces", "minimal ornamentation", "clean lines", 
+                "geometric forms", "neutral palette", "uncluttered spaces",
+                "integrated appliances", "flat-panel cabinets", "frameless glass"
+            ],
+            'Traditional': [
+                "ornate details", "classic proportions", "rich wood tones",
+                "decorative moldings", "raised panel cabinetry", "warm colors",
+                "traditional craftsmanship", "heritage design", "timeless appeal"
+            ],
+            'Luxury': [
+                "premium materials", "custom details", "handcrafted elements",
+                "imported marble", "exotic woods", "gold accents",
+                "designer fixtures", "statement lighting", "opulent finishes"
+            ],
+            'Scandinavian': [
+                "light wood tones", "white surfaces", "natural materials",
+                "functional simplicity", "cozy minimalism", "hygge atmosphere",
+                "organic textures", "neutral palette", "natural light maximization"
+            ],
+            'Industrial': [
+                "exposed brick", "raw concrete", "metal fixtures",
+                "weathered surfaces", "utilitarian aesthetic", "factory-inspired",
+                "open ductwork", "structural elements", "salvaged materials"
+            ],
+            'Farmhouse': [
+                "rustic charm", "shaker cabinets", "apron sink",
+                "reclaimed wood", "vintage fixtures", "antique elements",
+                "country aesthetic", "warm neutrals", "handcrafted details"
+            ],
+            'Contemporary': [
+                "bold contrasts", "mixed materials", "innovative fixtures",
+                "statement pieces", "current trends", "distinctive lighting",
+                "unexpected combinations", "dynamic elements", "sculptural forms"
+            ]
+        }
+        
+        return style_keywords.get(style, style_keywords['Modern'])
     
     def get_model_parameters(self, ai_intensity: float, high_quality: bool, mode: str) -> Dict:
         """Get optimized model parameters based on settings and style-specifics"""
@@ -243,7 +242,7 @@ class AIService:
         return base_params
     
     def analyze_inspiration_image(self, inspiration_url: str) -> Optional[str]:
-        """Analyze inspiration image using OpenAI Vision API"""
+        """Analyze inspiration image using OpenAI Vision API for comprehensive style analysis"""
         if not self.openai_client:
             logger.warning("OpenAI client not available for inspiration analysis")
             return None
@@ -282,6 +281,22 @@ class AIService:
                     logger.error(f"Failed to download image: {response.status_code}")
                     return None
             
+            # Enhanced prompt for more comprehensive style analysis
+            analysis_prompt = """
+            Analyze this interior design image in detail and provide a comprehensive analysis focusing on:
+            
+            1. Design Style: Identify the main interior design style and any sub-styles or influences
+            2. Color Palette: List all prominent colors (be specific with color names)
+            3. Materials: Identify key materials used in furniture, surfaces, and decorative elements
+            4. Key Design Elements: Describe distinctive furniture pieces, architectural features, and decorative items
+            5. Textures and Patterns: Note any significant textural elements or patterns
+            6. Lighting: Describe the lighting approach and fixtures
+            7. Spatial Arrangement: Note how space is utilized and furniture is arranged
+            
+            Focus on elements that would be valuable for kitchen redesign. Be specific and descriptive with colors, materials, and finishes.
+            Provide a thorough analysis that can guide an AI image generation system.
+            """
+            
             response = self.openai_client.chat.completions.create(
                 model="gpt-4o",
                 messages=[
@@ -290,7 +305,7 @@ class AIService:
                         "content": [
                             {
                                 "type": "text",
-                                "text": "Analyze this interior design image and describe the style, colors, materials, and key design elements in 2-3 sentences. Focus on elements that can be replicated in a kitchen design."
+                                "text": analysis_prompt
                             },
                             {
                                 "type": "image_url",
@@ -302,7 +317,7 @@ class AIService:
                         ]
                     }
                 ],
-                max_tokens=150,
+                max_tokens=500,
                 temperature=0.3
             )
             
@@ -560,3 +575,108 @@ class AIService:
                 return f"{prompt}, {quality_terms}"
         
         return prompt 
+
+    def analyze_room_image(self, image_data: str) -> Optional[Dict]:
+        """Analyze room image using OpenAI Vision API to extract colors, materials, and style elements"""
+        if not self.openai_client:
+            logger.warning("OpenAI client not available for room image analysis")
+            return None
+        
+        try:
+            # If image_data is a base64 string, use it directly
+            if image_data.startswith('data:image'):
+                direct_image_url = image_data
+            else:
+                # Convert to base64 if it's not already
+                try:
+                    import base64
+                    # Ensure we have the correct format by decoding and re-encoding
+                    if ',' in image_data:
+                        # It's already a data URL, extract the base64 part
+                        image_bytes = base64.b64decode(image_data.split(',')[1])
+                    else:
+                        # It's just base64 content
+                        image_bytes = base64.b64decode(image_data)
+                    
+                    # Re-encode to ensure proper format
+                    image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+                    direct_image_url = f"data:image/jpeg;base64,{image_base64}"
+                except Exception as e:
+                    logger.error(f"Error processing image data: {str(e)}")
+                    return None
+            
+            # Enhanced prompt for room analysis
+            analysis_prompt = """
+            Analyze this room image in detail and extract the following information:
+            
+            1. Colors: Identify all prominent colors in the room (walls, floors, cabinets, countertops, appliances)
+            2. Materials: Identify all visible materials (wood types, stone, metal, glass, etc.)
+            3. Style Elements: List key style elements and design features present
+            4. Key Features: Identify important architectural and functional elements
+            5. Layout Type: Describe the room layout (e.g., galley kitchen, L-shaped, open concept)
+            6. Lighting Conditions: Describe the lighting (natural light, fixtures)
+            7. Room Type: Confirm what type of room this is (kitchen, bathroom, living room, etc.)
+            
+            Format your response as a JSON object with these exact keys:
+            {
+                "colors": ["color1", "color2", ...],
+                "materials": ["material1", "material2", ...],
+                "style_elements": ["element1", "element2", ...],
+                "key_features": ["feature1", "feature2", ...],
+                "layout_type": "description",
+                "lighting_conditions": "description",
+                "room_type": "type"
+            }
+            
+            Be specific and detailed with color names and material descriptions. Focus on elements that would be important for redesign.
+            """
+            
+            response = self.openai_client.chat.completions.create(
+                model="gpt-4o",
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "text",
+                                "text": analysis_prompt
+                            },
+                            {
+                                "type": "image_url",
+                                "image_url": {
+                                    "url": direct_image_url,
+                                    "detail": "high"
+                                }
+                            }
+                        ]
+                    }
+                ],
+                max_tokens=500,
+                temperature=0.3,
+                response_format={"type": "json_object"}
+            )
+            
+            analysis_text = response.choices[0].message.content.strip()
+            logger.info(f"Room analysis completed: {analysis_text[:100]}...")
+            
+            # Parse JSON response
+            import json
+            try:
+                analysis_data = json.loads(analysis_text)
+                return analysis_data
+            except json.JSONDecodeError as e:
+                logger.error(f"Error parsing room analysis JSON: {str(e)}")
+                # Try to extract JSON from the response text
+                import re
+                json_match = re.search(r'\{.*\}', analysis_text, re.DOTALL)
+                if json_match:
+                    try:
+                        analysis_data = json.loads(json_match.group(0))
+                        return analysis_data
+                    except:
+                        logger.error("Failed to extract valid JSON from response")
+                return None
+            
+        except Exception as e:
+            logger.error(f"Error analyzing room image: {str(e)}")
+            return None 

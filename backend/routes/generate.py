@@ -62,6 +62,19 @@ def generate_design():
         # Create job ID
         job_id = str(uuid.uuid4())
         
+        # Extract room type from measurements if available
+        room_type = None
+        if measurements:
+            # Handle case where measurements can be either a list or a dictionary
+            if isinstance(measurements, dict):
+                room_type = measurements.get('roomType')
+            elif isinstance(measurements, list) and len(measurements) > 0:
+                # Try to find roomType in the list of measurements
+                for item in measurements:
+                    if isinstance(item, dict) and 'roomType' in item:
+                        room_type = item['roomType']
+                        break
+        
         # Create job data
         job_data = {
             'id': job_id,
@@ -74,9 +87,9 @@ def generate_design():
             'private_render': private_render,
             'advanced_mode': advanced_mode,
             'model_selection': model_selection,
-            'room_type': measurements.get('roomType') if measurements else None,
+            'room_type': room_type,
             'room_dimensions': room_dimensions,
-            'spatial_layout': measurements.get('spatialLayout') if measurements else None
+            'spatial_layout': None  # We'll handle this separately
         }
         
         # Get services from app context
@@ -96,19 +109,65 @@ def generate_design():
             image_bytes = base64.b64decode(image_data.split(',')[1])
             image = Image.open(BytesIO(image_bytes))
             
-            # Process image
+            # Process image for redesign
             processed_image = image_processor.process_image(image)
             
-            # Generate prompts using existing method
-            room_type = measurements.get('roomType') if measurements else 'room'
+            # Analyze room image for layout and important features
+            room_analysis = None
+            spatial_processor = current_app.config.get('SPATIAL_PROCESSOR')
+            if spatial_processor:
+                try:
+                    logger.info(f"Analyzing room layout for job {job_id}")
+                    room_analysis = spatial_processor.analyze_room_layout(image)
+                    
+                    # Also use AI to analyze the room image
+                    if ai_service.openai_client:
+                        logger.info(f"Performing AI analysis of room for job {job_id}")
+                        ai_room_analysis = ai_service.analyze_room_image(image_data)
+                        
+                        # Merge AI analysis with spatial processor analysis
+                        if ai_room_analysis and isinstance(ai_room_analysis, dict):
+                            if room_analysis is None:
+                                room_analysis = {}
+                            # Add AI-detected colors, materials, and style elements
+                            if 'colors' in ai_room_analysis:
+                                room_analysis['colors'] = ai_room_analysis.get('colors', [])
+                            if 'materials' in ai_room_analysis:
+                                room_analysis['materials'] = ai_room_analysis.get('materials', [])
+                            if 'style_elements' in ai_room_analysis:
+                                room_analysis['style_elements'] = ai_room_analysis.get('style_elements', [])
+                            if 'key_features' in ai_room_analysis:
+                                room_analysis['key_features'] = ai_room_analysis.get('key_features', [])
+                except Exception as e:
+                    logger.error(f"Error analyzing room layout: {str(e)}")
+                    # Continue even if analysis fails
+            
+            # Process inspiration image if provided
+            inspiration_description = None
+            if inspiration_image:
+                try:
+                    logger.info(f"Analyzing inspiration image for job {job_id}")
+                    inspiration_description = ai_service.analyze_inspiration_image(inspiration_image)
+                    logger.info(f"Inspiration analysis result: {inspiration_description[:100] if inspiration_description else 'None'}")
+                except Exception as e:
+                    logger.error(f"Error analyzing inspiration image: {str(e)}")
+                    # Continue even if analysis fails
+            
+            # Generate prompts using existing method with enhanced inputs
+            room_type = room_type or 'room'
             positive_prompt, negative_prompt = ai_service.generate_comprehensive_prompt(
                 mode=mode,
                 style=style,
                 room_type=room_type,
                 ai_intensity=ai_intensity,
                 measurements=measurements,
-                inspiration_description=inspiration_image
+                inspiration_description=inspiration_description,
+                room_analysis=room_analysis
             )
+            
+            # Log the prompt for debugging
+            logger.info(f"Job {job_id} positive prompt: {positive_prompt[:100]}...")
+            logger.info(f"Job {job_id} negative prompt: {negative_prompt[:100]}...")
             
             # Select model version based on user preference
             if model_selection == 'erayyavuz':
@@ -160,12 +219,14 @@ def generate_design():
                 input=model_input
             )
             
-            # Update job with prediction info
+            # Update job with prediction info and analysis data
             job.prediction_id = prediction.id
             job.model_version = model_version
             job.prompt = positive_prompt
             job.negative_prompt = negative_prompt
             job.status = 'processing'
+            job.room_analysis = room_analysis
+            job.inspiration_analysis = inspiration_description
             db_service.update_job(job.id, job.to_dict())
             
             return jsonify({
@@ -190,32 +251,62 @@ def generate_design():
 @generate_bp.route('/results/<job_id>', methods=['GET'])
 def get_results(job_id):
     """Get results for a specific job"""
-    logger.info(f"Results requested for job: {job_id}")
-    
     try:
+        logger.info(f"Results requested for job: {job_id}")
         db_service = current_app.config['DB_SERVICE']
         replicate_client = current_app.config['REPLICATE_CLIENT']
         
         # Get job from database
         job = db_service.get_job(job_id)
         if not job:
+            logger.error(f"Job not found: {job_id}")
             return jsonify({'error': 'Job not found'}), 404
-        
+            
         # If job is still processing, check status
         if job.status == 'processing' and job.prediction_id:
             try:
                 prediction = replicate_client.predictions.get(job.prediction_id)
+                logger.info(f"Prediction status: {prediction.status}")
+                
                 if prediction.status == 'succeeded':
-                    job.status = 'completed'
-                    job.result_url = prediction.output[0] if prediction.output else None
-                    db_service.update_job(job.id, job.to_dict())
+                    logger.info(f"Prediction succeeded. Output: {prediction.output}")
+                    
+                    # Handle different output formats
+                    result_url = None
+                    if isinstance(prediction.output, list) and prediction.output:
+                        result_url = prediction.output[0]
+                    elif isinstance(prediction.output, str):
+                        result_url = prediction.output
+                    elif isinstance(prediction.output, dict) and 'result' in prediction.output:
+                        result_url = prediction.output['result']
+                    
+                    if result_url:
+                        logger.info(f"Setting result URL: {result_url}")
+                        job.status = 'completed'
+                        job.result_url = result_url
+                        db_service.update_job(job.id, job.to_dict())
+                    else:
+                        logger.error(f"No valid result URL found in output: {prediction.output}")
+                        job.status = 'failed'
+                        job.error = "No valid output URL found in prediction result"
+                        db_service.update_job(job.id, job.to_dict())
+                        
                 elif prediction.status == 'failed':
+                    logger.error(f"Prediction failed: {prediction.error}")
                     job.status = 'failed'
                     job.error = prediction.error
                     db_service.update_job(job.id, job.to_dict())
             except Exception as e:
                 logger.error(f"Error checking prediction status: {str(e)}")
-        
+                logger.error(traceback.format_exc())
+                
+        # Log the result we're returning
+        logger.info(f"Returning job with status: {job.status}")
+        if job.result_url:
+            logger.info(f"Result URL: {job.result_url}")
+        if job.error:
+            logger.error(f"Job error: {job.error}")
+            
         return jsonify(job.to_dict())
         
     except Exception as e:

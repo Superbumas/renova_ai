@@ -19,43 +19,50 @@ class PromptEngine:
                 'colors': ['crisp white', 'charcoal gray', 'warm beige', 'soft black'],
                 'materials': ['quartz countertops', 'stainless steel appliances', 'handleless cabinets', 'glass backsplash'],
                 'characteristics': ['clean lines', 'minimal ornamentation', 'sleek hardware', 'integrated appliances'],
-                'lighting': ['recessed LED lighting', 'pendant lights over island', 'under-cabinet lighting']
+                'lighting': ['recessed LED lighting', 'pendant lights over island', 'under-cabinet lighting'],
+                'description': 'Sleek and minimalist with an emphasis on clean lines, open spaces, and functional design. Features handleless cabinets, integrated appliances, and neutral tones with occasional bold accents.'
             },
             'Traditional': {
                 'colors': ['warm white', 'cream', 'sage green', 'navy blue'],
                 'materials': ['granite countertops', 'raised panel cabinets', 'subway tile backsplash', 'hardwood floors'],
                 'characteristics': ['ornate details', 'crown molding', 'decorative hardware', 'classic proportions'],
-                'lighting': ['chandeliers', 'pendant lights', 'decorative sconces']
+                'lighting': ['chandeliers', 'pendant lights', 'decorative sconces'],
+                'description': 'Rich with historical details and timeless elegance. Features ornate moldings, raised panel cabinetry, classic fixtures, and warm wood tones. Emphasizes craftsmanship and traditional design principles.'
             },
             'Luxury': {
                 'colors': ['rich gold', 'deep emerald', 'marble white', 'charcoal black', 'royal navy', 'champagne bronze'],
                 'materials': ['marble countertops', 'custom millwork', 'brass hardware', 'stone backsplash', 'hardwood floors', 'designer appliances'],
                 'characteristics': ['opulent finishes', 'dramatic lighting', 'statement pieces', 'high-end materials', 'custom details', 'bold contrasts'],
-                'lighting': ['crystal chandeliers', 'statement pendant lights', 'dramatic accent lighting', 'gold fixtures']
+                'lighting': ['crystal chandeliers', 'statement pendant lights', 'dramatic accent lighting', 'gold fixtures'],
+                'description': 'Opulent and sumptuous with premium materials and exquisite craftsmanship. Features imported marble, custom cabinetry, statement lighting fixtures, and luxurious metallic accents. No expense spared on finishes and appliances.'
             },
             'Scandinavian': {
                 'colors': ['pure white', 'light gray', 'pale wood tones', 'soft blue'],
                 'materials': ['light wood cabinets', 'white quartz', 'white subway tiles', 'natural wood floors'],
                 'characteristics': ['functional simplicity', 'light wood accents', 'minimal hardware', 'cozy textures'],
-                'lighting': ['natural light emphasis', 'simple pendant lights', 'warm LED fixtures']
+                'lighting': ['natural light emphasis', 'simple pendant lights', 'warm LED fixtures'],
+                'description': 'Bright, airy, and minimalist with an emphasis on natural materials and light. Features blonde wood, white surfaces, simple lines, and uncluttered spaces. Balances functionality with warmth and organic elements.'
             },
             'Industrial': {
                 'colors': ['exposed brick red', 'steel gray', 'charcoal black', 'weathered copper', 'raw concrete', 'rust orange'],
                 'materials': ['concrete countertops', 'steel cabinets', 'exposed brick backsplash', 'stainless steel appliances', 'metal shelving', 'concrete floors'],
                 'characteristics': ['exposed structural elements', 'raw industrial materials', 'metal pipe fixtures', 'urban loft aesthetic', 'weathered finishes', 'bold contrasts'],
-                'lighting': ['Edison bulb pendants', 'track lighting', 'industrial metal fixtures', 'exposed conduit lighting']
+                'lighting': ['Edison bulb pendants', 'track lighting', 'industrial metal fixtures', 'exposed conduit lighting'],
+                'description': 'Raw, utilitarian aesthetic inspired by factories and warehouses. Features exposed brick, metal fixtures, concrete surfaces, and weathered finishes. Celebrates structural elements and mechanical details with open shelving and pipework.'
             },
             'Farmhouse': {
                 'colors': ['warm white', 'cream', 'sage green', 'natural wood'],
                 'materials': ['butcher block counters', 'shaker cabinets', 'farmhouse sink', 'reclaimed wood'],
                 'characteristics': ['rustic charm', 'vintage elements', 'open shelving', 'country details'],
-                'lighting': ['vintage-style fixtures', 'mason jar lights', 'wrought iron pendants']
+                'lighting': ['vintage-style fixtures', 'mason jar lights', 'wrought iron pendants'],
+                'description': 'Warm and rustic with countryside charm and vintage touches. Features apron sinks, shaker cabinets, reclaimed wood, and antique-inspired hardware. Balances practicality with nostalgic elements and natural materials.'
             },
             'Contemporary': {
                 'colors': ['bold accent colors', 'neutral base', 'black and white', 'metallic accents'],
                 'materials': ['engineered quartz', 'flat-panel cabinets', 'large format tiles', 'mixed materials'],
                 'characteristics': ['current trends', 'bold contrasts', 'innovative materials', 'statement pieces'],
-                'lighting': ['statement lighting', 'LED strips', 'modern chandeliers']
+                'lighting': ['statement lighting', 'LED strips', 'modern chandeliers'],
+                'description': 'Current, on-trend design featuring bold contrasts and mixed materials. Less rigid than modern style, incorporating innovative fixtures, distinctive lighting, and unexpected combinations of textures and finishes.'
             }
         }
         
@@ -176,46 +183,64 @@ class PromptEngine:
         # Ensure style is in English
         style = self._translate_style_to_english(style)
         
-        # Base prompt structure based on successful Replicate playground example
-        base_prompt = f"Beautiful {style.lower()} {room_type} interior design, professional interior design, "
-        base_prompt += "realistic lighting and materials, "
+        # Get full style details - use ALL available style elements
+        style_data = self.style_definitions.get(style, self.style_definitions['Modern'])
+        
+        # Base prompt structure with detailed style information
+        base_prompt = f"Beautiful {style.lower()} {room_type} interior design. {style_data['description']} "
+        
+        # Add detailed style characteristics
+        base_prompt += f"KEY STYLE ELEMENTS: "
+        base_prompt += f"Colors: {', '.join(style_data['colors'])}. "
+        base_prompt += f"Materials: {', '.join(style_data['materials'])}. "
+        base_prompt += f"Features: {', '.join(style_data['characteristics'])}. "
+        base_prompt += f"Lighting: {', '.join(style_data['lighting'])}. "
         
         # Spatial constraints - always include when measurements are available
         if measurements:
             max_width = self._analyze_room_dimensions(measurements).get('max_width', 0)
             if max_width > 0 and max_width < 3.2:
-                base_prompt += f"narrow galley {room_type} {max_width:.1f}m wide, "
-                base_prompt += "linear countertop arrangement, efficient space utilization, no center island possible, "
+                base_prompt += f"SPATIAL CONSTRAINTS: narrow galley {room_type} {max_width:.1f}m wide, "
+                base_prompt += "linear countertop arrangement, efficient space utilization, no center island possible. "
             else:
                 # Larger kitchen with island potential
-                base_prompt += f"{room_type} {max_width:.1f}m x {max_width-0.5:.1f}m space, "
+                base_prompt += f"SPATIAL DIMENSIONS: {room_type} {max_width:.1f}m x {max_width-0.5:.1f}m space. "
         
         # Add layout and workflow elements
-        base_prompt += "streamlined workflow, realistic proportions "
+        base_prompt += "LAYOUT REQUIREMENTS: streamlined workflow, realistic proportions, "
         
         if measurements:
-            base_prompt += f"for {max_width:.1f}m x {max_width-0.5:.1f}m space, "
+            base_prompt += f"properly scaled for {max_width:.1f}m x {max_width-0.5:.1f}m space. "
         
         # Enhanced quality prompts with ultrarealistic and 8K terms
-        base_prompt += "accurately scaled for room, perfect proportions and spatial relationships, "
+        base_prompt += "RENDERING QUALITY: accurately scaled for room, perfect proportions and spatial relationships, "
         base_prompt += "following professional interior design standards, ultra high quality interior design, "
         base_prompt += "photorealistic rendering, intricate material textures, cinematic lighting with soft shadows, "
         base_prompt += "professional architectural photography, magazine quality presentation, "
         base_prompt += "8K resolution, ultrarealistic, ultra detailed, high definition, ray-traced lighting, "
         base_prompt += "crystal clear details, hyper-realistic materials, award-winning design, "
-        base_prompt += f"luxury {style.lower()} interior design showcase, photographic quality"
+        base_prompt += f"luxury {style.lower()} interior design showcase, photographic quality. "
         
         # Add style-specific details from inspiration if available
         if inspiration_description:
-            # Extract key elements from inspiration (limit to 50 words)
-            inspiration_elements = ' '.join(inspiration_description.split()[:50])
-            base_prompt = f"{base_prompt} with {inspiration_elements}"
+            # Extract key elements from inspiration (use full description)
+            base_prompt += f"INSPIRED BY: {inspiration_description} "
+            
+            # Extract color information from inspiration
+            color_words = [word for word in inspiration_description.split() if word.lower() in [
+                "white", "black", "gray", "grey", "blue", "green", "red", "yellow", "orange", 
+                "purple", "pink", "brown", "beige", "cream", "ivory", "gold", "silver", "bronze",
+                "copper", "brass", "wood", "marble", "granite", "quartz", "steel", "metal"
+            ]]
+            
+            if color_words:
+                base_prompt += f"WITH COLOR PALETTE FEATURING: {', '.join(color_words)}. "
         
         # Room analysis integration - add important details if available
         if room_analysis:
             analysis_prompt = self._integrate_room_analysis(room_analysis)
             if analysis_prompt:
-                base_prompt += ". " + analysis_prompt
+                base_prompt += "ROOM ANALYSIS: " + analysis_prompt
         
         return base_prompt
     
@@ -279,19 +304,31 @@ class PromptEngine:
         # Ensure style is in English
         style = self._translate_style_to_english(style)
         
-        if inspiration_description:
-            # Use AI-analyzed inspiration but keep it concise
-            style_words = inspiration_description.split()[:30]  # Limit to prevent overwhelming
-            return f"STYLE INSPIRATION: {' '.join(style_words)}"
-        
+        # Always include the full style description
         style_data = self.style_definitions.get(style, self.style_definitions['Modern'])
         
         details = []
-        details.append(f"{style.upper()} STYLE CHARACTERISTICS:")
-        details.append(f"Colors: {', '.join(style_data['colors'][:3])}")  # Limit colors
-        details.append(f"Materials: {', '.join(style_data['materials'][:3])}")  # Limit materials
-        details.append(f"Features: {', '.join(style_data['characteristics'][:3])}")  # Limit features
-        details.append(f"Lighting: {', '.join(style_data['lighting'][:2])}")  # Limit lighting
+        details.append(f"{style.upper()} STYLE: {style_data['description']}")
+        
+        # If inspiration is available, combine it with style information
+        if inspiration_description:
+            details.append(f"STYLE INSPIRATION: {inspiration_description}")
+            
+            # Extract color information from inspiration to enhance the prompt
+            color_words = [word for word in inspiration_description.split() if word.lower() in [
+                "white", "black", "gray", "grey", "blue", "green", "red", "yellow", "orange", 
+                "purple", "pink", "brown", "beige", "cream", "ivory", "gold", "silver", "bronze",
+                "copper", "brass", "wood", "marble", "granite", "quartz", "steel", "metal"
+            ]]
+            
+            if color_words:
+                details.append(f"COLOR PALETTE: {', '.join(color_words)}")
+        else:
+            # Otherwise use the full style definition
+            details.append(f"Colors: {', '.join(style_data['colors'])}")
+            details.append(f"Materials: {', '.join(style_data['materials'])}")
+            details.append(f"Features: {', '.join(style_data['characteristics'])}")
+            details.append(f"Lighting: {', '.join(style_data['lighting'])}")
         
         return " ".join(details)
     
@@ -301,10 +338,15 @@ class PromptEngine:
         # Ensure style is in English
         style = self._translate_style_to_english(style)
         
+        # Get the full style data
+        style_data = self.style_definitions.get(style, self.style_definitions['Modern'])
+        
+        details = []
+        details.append(f"{style.upper()} STYLE: {style_data['description']}")
+        
+        # If inspiration is available, combine it with style information
         if inspiration_description:
-            # Use AI-analyzed inspiration but enhance it for high intensity
-            style_words = inspiration_description.split()[:30]
-            base_inspiration = f"STYLE INSPIRATION: {' '.join(style_words)}"
+            details.append(f"STYLE INSPIRATION: {inspiration_description}")
             
             # Add high-quality enhancements based on style
             quality_enhancements = {
@@ -321,38 +363,43 @@ class PromptEngine:
             style_enhancement = quality_enhancements.get(style, "high-end finishes, premium materials, masterful craftsmanship")
             
             if ai_intensity > 0.6:
-                return f"{base_inspiration} with {style_enhancement}. DRAMATIC TRANSFORMATION: bold design choices, luxury upgrades, striking focal points, professional lighting design."
+                details.append(f"ENHANCED ELEMENTS: {style_enhancement}")
+                details.append("DRAMATIC TRANSFORMATION: bold design choices, luxury upgrades, striking focal points, professional lighting design")
             else:
-                return f"{base_inspiration} with {style_enhancement}."
+                details.append(f"REFINED ELEMENTS: {style_enhancement}")
                 
-        # If no inspiration, use style definitions with quality enhancements
-        style_data = self.style_definitions.get(style, self.style_definitions['Modern'])
-        
-        # Base style details
-        details = []
-        details.append(f"{style.upper()} STYLE CHARACTERISTICS:")
-        
-        # Enhanced style elements for higher quality
-        if ai_intensity > 0.6:
-            # Add premium materials and quality elements
-            if style == 'Modern':
-                details.append("Premium Materials: Italian porcelain, brushed stainless steel, engineered quartz, tempered glass")
-                details.append("Luxury Features: hidden LED lighting, flush cabinetry, integrated appliances, smart home technology")
-            elif style == 'Traditional':
-                details.append("Premium Materials: hardwood cabinetry, natural stone, oil-rubbed bronze, custom millwork")
-                details.append("Luxury Features: ornate crown molding, furniture-style islands, decorative range hood, vintage-inspired fixtures")
-            elif style == 'Luxury':
-                details.append("Premium Materials: Calacatta marble, burnished brass, exotic woods, artisan glass")
-                details.append("Luxury Features: statement chandelier, waterfall countertops, custom range hood, designer hardware")
-            else:
-                details.append(f"Premium Materials: {', '.join(style_data['materials'][:3])}")
-                details.append(f"Luxury Features: {', '.join(style_data['characteristics'][:3])}")
-        else:
-            details.append(f"Colors: {', '.join(style_data['colors'][:3])}")
-            details.append(f"Materials: {', '.join(style_data['materials'][:3])}")
-            details.append(f"Features: {', '.join(style_data['characteristics'][:3])}")
+            # Extract color information from inspiration to enhance the prompt
+            color_words = [word for word in inspiration_description.split() if word.lower() in [
+                "white", "black", "gray", "grey", "blue", "green", "red", "yellow", "orange", 
+                "purple", "pink", "brown", "beige", "cream", "ivory", "gold", "silver", "bronze",
+                "copper", "brass", "wood", "marble", "granite", "quartz", "steel", "metal"
+            ]]
             
-        details.append(f"Lighting: {', '.join(style_data['lighting'][:2])}")
+            if color_words:
+                details.append(f"COLOR PALETTE: {', '.join(color_words)}")
+                
+        else:
+            # If no inspiration, use full style definition with additional premium elements
+            if ai_intensity > 0.6:
+                # Add premium materials and quality elements
+                if style == 'Modern':
+                    details.append("Premium Materials: Italian porcelain, brushed stainless steel, engineered quartz, tempered glass")
+                    details.append("Luxury Features: hidden LED lighting, flush cabinetry, integrated appliances, smart home technology")
+                elif style == 'Traditional':
+                    details.append("Premium Materials: hardwood cabinetry, natural stone, oil-rubbed bronze, custom millwork")
+                    details.append("Luxury Features: ornate crown molding, furniture-style islands, decorative range hood, vintage-inspired fixtures")
+                elif style == 'Luxury':
+                    details.append("Premium Materials: Calacatta marble, burnished brass, exotic woods, artisan glass")
+                    details.append("Luxury Features: statement chandelier, waterfall countertops, custom range hood, designer hardware")
+                else:
+                    details.append(f"Premium Materials: {', '.join(style_data['materials'])}")
+                    details.append(f"Luxury Features: {', '.join(style_data['characteristics'])}")
+            else:
+                details.append(f"Colors: {', '.join(style_data['colors'])}")
+                details.append(f"Materials: {', '.join(style_data['materials'])}")
+                details.append(f"Features: {', '.join(style_data['characteristics'])}")
+                
+            details.append(f"Lighting: {', '.join(style_data['lighting'])}")
         
         # Add quality elements regardless of AI intensity
         details.append("Professional quality: magazine-worthy composition, architectural details, perfect proportions")
@@ -496,12 +543,24 @@ class PromptEngine:
         if 'layout_type' in room_analysis:
             analysis_parts.append(f"EXISTING LAYOUT: {room_analysis['layout_type']}")
         
-        if 'key_features' in room_analysis:
-            features = room_analysis['key_features'][:3]  # Limit features
+        if 'key_features' in room_analysis and isinstance(room_analysis['key_features'], list):
+            features = room_analysis['key_features']
             analysis_parts.append(f"KEY FEATURES: {', '.join(features)}")
         
         if 'lighting_conditions' in room_analysis:
             analysis_parts.append(f"LIGHTING: {room_analysis['lighting_conditions']}")
+            
+        if 'colors' in room_analysis and isinstance(room_analysis['colors'], list):
+            colors = room_analysis['colors']
+            analysis_parts.append(f"DETECTED COLORS: {', '.join(colors)}")
+            
+        if 'materials' in room_analysis and isinstance(room_analysis['materials'], list):
+            materials = room_analysis['materials']
+            analysis_parts.append(f"DETECTED MATERIALS: {', '.join(materials)}")
+            
+        if 'style_elements' in room_analysis and isinstance(room_analysis['style_elements'], list):
+            style_elements = room_analysis['style_elements']
+            analysis_parts.append(f"STYLE ELEMENTS: {', '.join(style_elements)}")
         
         return " ".join(analysis_parts) if analysis_parts else ""
     
@@ -583,4 +642,61 @@ class PromptEngine:
             # Design mode needs higher guidance for better generation from scratch
             base_params["num_inference_steps"] = base_params["num_inference_steps"] + 10
         
-        return base_params 
+        return base_params
+    
+    def _generate_structural_preservation(self, intensity_level: str = "balanced", measurements: Optional[List] = None) -> str:
+        """
+        Generate structural preservation instructions for maintaining architectural elements
+        
+        Args:
+            intensity_level: "strict", "balanced", or "relaxed"
+            measurements: Optional room measurements
+        
+        Returns:
+            String with structural preservation instructions
+        """
+        preservation_parts = []
+        
+        if intensity_level == "strict":
+            # Strongest preservation - maintain everything
+            preservation_parts.append("CRITICAL STRUCTURE PRESERVATION REQUIREMENTS:")
+            preservation_parts.extend([
+                "PRESERVE EXACT window locations, sizes, and frames",
+                "MAINTAIN ALL door openings, positions, and frames", 
+                "KEEP ORIGINAL wall corners, boundaries, and structural elements",
+                "RETAIN ALL existing architectural features exactly as they are",
+                "PRESERVE EXACT room dimensions and proportions",
+                "MAINTAIN electrical outlet and switch positions",
+                "KEEP ceiling height and fixtures in original locations",
+                "PRESERVE ALL plumbing fixtures in their exact positions"
+            ])
+            
+        elif intensity_level == "balanced":
+            # Balanced preservation - maintain structural elements but allow some design freedom
+            preservation_parts.append("STRUCTURE PRESERVATION REQUIREMENTS:")
+            preservation_parts.extend([
+                "Preserve window locations and sizes",
+                "Maintain door openings and positions", 
+                "Keep wall corners and room boundaries",
+                "Retain existing architectural elements",
+                "Preserve room layout and structural walls",
+                "Keep ceiling height and proportions",
+                "Maintain plumbing fixture locations where practical"
+            ])
+            
+        else:  # relaxed
+            # Allow more creative freedom, just preserve basic structure
+            preservation_parts.append("BASIC STRUCTURE GUIDELINES:")
+            preservation_parts.extend([
+                "Maintain general room shape and key structural elements",
+                "Keep windows and doors in generally the same locations",
+                "Preserve load-bearing walls and key architectural features"
+            ])
+        
+        # Add specific constraints based on measurements
+        if measurements and intensity_level in ["strict", "balanced"]:
+            room_data = self._analyze_room_dimensions(measurements)
+            if room_data.get('max_width', 0) < 3.2:
+                preservation_parts.append(f"CRITICAL: Limited width of {room_data['max_width']:.1f}m requires maintaining exact wall positions")
+            
+        return " ".join(preservation_parts) 
