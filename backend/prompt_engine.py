@@ -156,18 +156,32 @@ class PromptEngine:
                 style, room_type, ai_intensity, measurements, 
                 inspiration_description, room_analysis
             )
-        else:  # design mode
+        else:
             base_prompt = self._generate_design_prompt(
-                style, room_type, measurements, inspiration_description, room_analysis
+                style, room_type, ai_intensity, measurements,
+                inspiration_description
             )
+            
+        # Generate positive prompt with all enhancements
+        positive_prompt = base_prompt
+        
+        # Add structural preservation prompt based on AI intensity
+        structure_prompt = self._generate_structural_preservation(
+            "strict" if ai_intensity < 0.3 else "balanced" if ai_intensity < 0.7 else "relaxed",
+            measurements
+        )
+        positive_prompt = f"{positive_prompt} {structure_prompt}"
+        
+        # Apply standard prompt enhancements for better quality
+        positive_prompt = self._enhance_prompt_quality(positive_prompt)
         
         # Generate negative prompt for structure preservation and functional correctness
-        negative_prompt = self._generate_negative_prompt(mode, ai_intensity, measurements, room_type)
+        negative_prompt = self._generate_negative_prompt(room_type)
         
         logger.info(f"Generated {mode} prompt: {base_prompt[:100]}...")
-        logger.info(f"Generated negative prompt: {negative_prompt[:80]}...")
+        logger.info(f"Generated negative prompt: {negative_prompt[:100]}...")
         
-        return base_prompt, negative_prompt
+        return positive_prompt, negative_prompt
     
     def _generate_redesign_prompt(
         self,
@@ -251,58 +265,59 @@ class PromptEngine:
         return base_prompt
     
     def _generate_design_prompt(
-        self,
+        self, 
         style: str,
         room_type: str,
+        ai_intensity: float,
         measurements: Optional[List],
-        inspiration_description: Optional[str],
-        room_analysis: Optional[Dict]
+        inspiration_description: Optional[str]
     ) -> str:
         """Generate detailed design-from-scratch prompt"""
         
         # Ensure style is in English
         style = self._translate_style_to_english(style)
         
-        prompt_parts = []
+        # Get full style details
+        style_data = self.style_definitions.get(style, self.style_definitions['Modern'])
         
-        # Base design premise
-        prompt_parts.extend([
-            f"COMPLETE {room_type.upper()} DESIGN: Furnish and design empty space with full",
-            f"{style.lower()} style interior including all necessary furniture, appliances, and fixtures."
-        ])
+        # Base prompt structure with detailed style information
+        base_prompt = f"Beautiful {style.lower()} {room_type} interior design. {style_data['description']} "
         
-        # Style-specific details
-        style_details = self._get_style_details(style, inspiration_description)
-        prompt_parts.append(style_details)
+        # Add style-specific elements
+        design_parts = []
         
-        # Essential kitchen elements
-        if room_type == 'kitchen':
-            prompt_parts.append(
-                "INCLUDE ESSENTIAL ELEMENTS: kitchen cabinets (upper and lower), "
-                "countertops, backsplash, sink, stove/cooktop, refrigerator, "
-                "appropriate lighting, and proper storage solutions."
-            )
+        # Add color palette from style
+        if style_data.get('colors'):
+            colors = style_data['colors']
+            design_parts.append(f"Color palette includes {', '.join(colors[:3])}" + 
+                               (f" and {colors[3]}" if len(colors) > 3 else ""))
         
-        # Spatial layout from measurements
-        spatial_layout = self._generate_spatial_layout(measurements, room_type)
-        if spatial_layout:
-            prompt_parts.append(spatial_layout)
+        # Add materials from style
+        if style_data.get('materials'):
+            materials = style_data['materials']
+            design_parts.append(f"Features {', '.join(materials[:3])}" + 
+                               (f" and {materials[3]}" if len(materials) > 3 else ""))
         
-        # Room analysis integration
-        if room_analysis:
-            analysis_prompt = self._integrate_room_analysis(room_analysis)
-            if analysis_prompt:
-                prompt_parts.append(analysis_prompt)
+        # Add characteristics from style
+        if style_data.get('characteristics'):
+            characteristics = style_data['characteristics']
+            design_parts.append(f"Design includes {', '.join(characteristics[:3])}" + 
+                               (f" and {characteristics[3]}" if len(characteristics) > 3 else ""))
         
-        # Quality enhancers
-        prompt_parts.extend([
-            "Professional interior design quality:",
-            "realistic furniture placement, proper scale and proportions,",
-            "functional layout design, high-end materials and finishes,",
-            "excellent lighting design, photorealistic rendering"
-        ])
+        # Add lighting elements from style
+        if style_data.get('lighting'):
+            lighting = style_data['lighting']
+            design_parts.append(f"Lighting includes {', '.join(lighting[:2])}" + 
+                               (f" and {lighting[2]}" if len(lighting) > 2 else ""))
         
-        return " ".join(prompt_parts)
+        # Add inspiration description if available
+        if inspiration_description:
+            design_parts.append(f"Inspired by: {inspiration_description}")
+        
+        # Join all parts into cohesive design prompt
+        base_prompt += " ".join(design_parts)
+        
+        return base_prompt
     
     def _get_style_details(self, style: str, inspiration_description: Optional[str]) -> str:
         """Generate detailed style description"""
@@ -570,64 +585,84 @@ class PromptEngine:
         
         return " ".join(analysis_parts) if analysis_parts else ""
     
-    def _generate_negative_prompt(self, mode: str, ai_intensity: float, measurements: Optional[List], room_type: str = 'kitchen') -> str:
-        """Generate negative prompt to preserve structure and ensure functional correctness"""
-        
-        # Start with quality issues to avoid
-        negative_parts = [
-            "lowres, watermark, banner, logo, watermark, contactinfo, text, deformed",
-            "blurry, blur, out of focus, out of frame, surreal, extra, ugly",
-            "upholstered walls, fabric walls, plush walls, mirror, mirrored, functional",
-            "grainy, pixelated, unrealistic lighting, poor composition, low contrast, muddy colors",
-            "amateur, unprofessional, crooked angles, flat lighting, dull materials, cartoon style",
-            "dark, underexposed, dim, unrealistic architecture, impossible layout, warped",
-            "unrealistic proportions, floating elements, incoherent design, distorted perspective"
+    def _generate_negative_prompt(self, room_type: str = "kitchen") -> str:
+        """Generate a strong negative prompt focused on preventing unrealistic elements"""
+        base_negatives = [
+            "poorly rendered", "blurry", "oversaturated", "pixelated", "low resolution", 
+            "bad proportions", "duplicate items", "double image", "distorted", "deformed", 
+            "watermark", "signature", "cut off", "over-sharpened", "fisheye lens"
         ]
         
-        # Kitchen-specific functional errors to avoid
-        if room_type.lower() in ["kitchen", "kitchenette"]:
-            negative_parts.extend([
-                "multiple faucets on one sink, duplicate fixtures, too many faucets, multiple range hoods",
-                "illogical fixture placement, duplicate appliances, unrealistic fixture arrangement",
-                "nonsensical plumbing, misaligned fixtures, impractical design, extra taps",
-                "floating fixtures, double faucets, triple faucets, unrealistic kitchen layout",
-                "overlapping countertops, uneven countertops, floating cabinets, misaligned cabinets",
-                "two refrigerators, two stoves, two sinks without justification, unconnected fixtures",
-                "plumbing in impossible locations, fixtures extending through walls or cabinets"
-            ])
+        # Very strong negatives for preventing duplicate fixtures
+        kitchen_negatives = [
+            "two sinks", "multiple sinks", "duplicate sink", 
+            "two stoves", "multiple stoves", "duplicate stove", 
+            "two ranges", "multiple ranges", "duplicate range",
+            "two cookers", "multiple cookers", "duplicate cookers",
+            "two cooktops", "multiple cooktops", "duplicate cooktop",
+            "two ovens", "multiple ovens in wrong places", "duplicate oven",
+            "two refrigerators", "duplicate refrigerator", "multiple refrigerators",
+            "two faucets", "multiple faucets", "extra faucets", "misplaced faucets",
+            "missing sink", "missing faucet", "illogical layout",
+            "duplicate appliances", "unrealistic kitchen features",
+            "floating appliances", "appliances without proper placement",
+            "appliances in wrong locations", "unrealistic kitchen design",
+            "poor kitchen workflow", "nonsensical kitchen layout"
+        ]
         
-        # Structure preservation issues to avoid in redesign mode
-        if mode == 'redesign':
-            # Always avoid certain structural issues
-            negative_parts.append("completely different room shape, impossible architectural changes")
+        bathroom_negatives = [
+            "two toilets", "multiple toilets", "duplicate toilet", 
+            "two sinks", "multiple sinks", "duplicate sink",
+            "two showers", "multiple showers in one bathroom", "duplicate shower",
+            "two bathtubs", "multiple bathtubs", "duplicate bathtub",
+            "missing toilet", "missing sink", "illogical bathroom layout",
+            "unrealistic bathroom features", "poor bathroom design"
+        ]
+        
+        living_room_negatives = [
+            "multiple sofas in wrong places", "duplicate coffee tables", 
+            "multiple TVs", "poorly placed furniture", "unrealistic living room layout",
+            "floating furniture", "disproportionate furniture"
+        ]
+        
+        bedroom_negatives = [
+            "multiple beds", "duplicate nightstands", "duplicate dressers",
+            "poorly placed bedroom furniture", "unrealistic bedroom layout",
+            "floating furniture", "disproportionate furniture"
+        ]
+        
+        dining_room_negatives = [
+            "multiple dining tables", "duplicate tables", "too many chairs",
+            "poorly placed dining furniture", "unrealistic dining room layout"
+        ]
+
+        # Room-specific negatives
+        room_specific_negatives = []
+        if room_type.lower() == "kitchen":
+            room_specific_negatives = kitchen_negatives
+        elif room_type.lower() == "bathroom":
+            room_specific_negatives = bathroom_negatives
+        elif room_type.lower() == "living room":
+            room_specific_negatives = living_room_negatives
+        elif room_type.lower() == "bedroom":
+            room_specific_negatives = bedroom_negatives
+        elif room_type.lower() == "dining room":
+            room_specific_negatives = dining_room_negatives
             
-            # Stronger structure preservation for lower AI intensity
-            if ai_intensity < 0.3:
-                # Very strict - maintain nearly everything
-                negative_parts.extend([
-                    "changed wall layout, moved windows, moved doors, structurally impossible",
-                    "different floor plan, changed ceiling height, moved plumbing fixtures",
-                    "architecturally unrealistic, non-structural changes, structural changes",
-                    "changed window sizes, changed door locations, removed walls, added walls",
-                    "changed room dimensions, altered ceiling features, moved structural elements"
-                ])
-            elif ai_intensity < 0.7:
-                # Moderate - maintain key structural elements
-                negative_parts.extend([
-                    "major structural changes, moved load-bearing walls, impossible window relocations",
-                    "completely different floor plan, unrealistic architectural modifications",
-                    "changed essential room structure, unsafe structural alterations"
-                ])
-            # For high AI intensity, we allow more structural changes, so fewer negative constraints
+        # Functional correctness negatives (very important for believable interiors)
+        functional_negatives = [
+            "non-functional design", "impossible layout", "unrealistic architecture",
+            "physically impossible features", "structurally unsound", "gravity-defying elements",
+            "illogical fixture placement", "unrealistic proportions", "inconsistent perspective"
+        ]
         
-        # Add spatial negatives for narrow kitchens
-        if measurements:
-            room_data = self._analyze_room_dimensions(measurements)
-            if room_data.get('max_width', 0) < 3.0 and room_type.lower() in ["kitchen", "kitchenette"]:
-                negative_parts.append("kitchen island, center island, double island, large island")
+        # Combine all negatives
+        all_negatives = base_negatives + room_specific_negatives + functional_negatives
         
-        # Join all negative parts with commas
-        return ", ".join(negative_parts)
+        # Format the negative prompt
+        negative_prompt = ", ".join(all_negatives)
+        
+        return negative_prompt
     
     def get_model_parameters(self, ai_intensity: float, high_quality: bool, mode: str) -> Dict:
         """Get optimized model parameters based on settings"""
