@@ -11,6 +11,16 @@ const ResultDisplay = ({ result, originalImage, onReset, measurements, roomType 
   useEffect(() => {
     // Debug: log the full result object to check structure
     console.log('Result data in ResultDisplay:', result);
+    console.log('ID fields present:', {
+      id: !!result.id,
+      job_id: !!result.job_id
+    });
+    console.log('Model fields:', {
+      model: result.model,
+      model_selection: result.model_selection,
+      model_version: result.model_version, 
+      model_name: result.model_name
+    });
     
     let renders = [];
     if (result.all_renders) {
@@ -67,19 +77,19 @@ const ResultDisplay = ({ result, originalImage, onReset, measurements, roomType 
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 relative overflow-hidden">
+    <div className="w-full bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 relative overflow-hidden">
       {/* Animated Background */}
-      <div className="absolute inset-0 opacity-30">
+      <div className="absolute inset-0 opacity-20">
         <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl animate-pulse"></div>
         <div className="absolute top-0 -right-4 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl animate-pulse animation-delay-2000"></div>
         <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl animate-pulse animation-delay-4000"></div>
       </div>
 
       {/* Main Container - Full Width */}
-      <div className="relative z-10 w-full mx-auto px-6 py-8">
+      <div className="relative z-10 w-full mx-auto px-4 py-8">
         {/* Premium Header */}
-        <div className="max-w-[1800px] mx-auto mb-8">
-          <div className="flex items-center justify-between">
+        <div className="max-w-full mx-auto mb-8">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div className="flex items-center space-x-6">
               <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
                 <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -127,7 +137,7 @@ const ResultDisplay = ({ result, originalImage, onReset, measurements, roomType 
         </div>
 
         {/* Main Content Grid - Full Width Layout */}
-        <div className="max-w-[1800px] mx-auto grid grid-cols-1 xl:grid-cols-5 gap-8">
+        <div className="w-full mx-auto grid grid-cols-1 xl:grid-cols-5 gap-8">
           {/* Left Panel - Image Display (Takes 3 columns) */}
           <div className="xl:col-span-3 space-y-6">
             {/* Image Controls */}
@@ -462,7 +472,7 @@ const ResultDisplay = ({ result, originalImage, onReset, measurements, roomType 
                             <div className="flex justify-between items-center py-2 border-b border-blue-200 last:border-b-0">
                               <span className="text-blue-700 font-medium">Model Name</span>
                               <span className="text-blue-900 font-semibold">
-                                {result.model?.name || 'Adirik Interior Design'}
+                                {result.model?.name || result.model_name || 'Adirik Interior Design'}
                               </span>
                             </div>
                             <div className="flex justify-between items-center py-2 border-b border-blue-200 last:border-b-0">
@@ -480,7 +490,7 @@ const ResultDisplay = ({ result, originalImage, onReset, measurements, roomType 
                             <div className="flex justify-between items-center py-2 border-b border-blue-200 last:border-b-0">
                               <span className="text-blue-700 font-medium">Cost per Generation</span>
                               <span className="px-2 py-1 bg-blue-200 text-blue-800 rounded-full text-sm font-semibold">
-                                {result.model?.cost_per_generation || '$0.05'}
+                                {result.model?.cost_per_generation || result.model_cost || '$0.05'}
                               </span>
                             </div>
                           </div>

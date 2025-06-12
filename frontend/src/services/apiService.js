@@ -69,6 +69,41 @@ const apiService = {
     const response = await apiClient.get('/api/jobs');
     return response.data;
   },
+
+  // Debug method - gets the raw response with full headers for a job
+  getRawJobData: async (jobId) => {
+    try {
+      console.log(`Fetching raw data for job ${jobId}`);
+      const response = await axios.get(`${API_BASE_URL}/api/results/${jobId}`, {
+        transformResponse: [(data) => data], // prevent JSON parsing
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+          'Expires': '0',
+        }
+      });
+      
+      console.log('Raw API response:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+        data: response.data,
+      });
+      
+      // Try to parse the response
+      try {
+        const parsedData = JSON.parse(response.data);
+        console.log('Parsed data:', parsedData);
+        return parsedData;
+      } catch (parseError) {
+        console.error('Error parsing response:', parseError);
+        return { error: 'Could not parse response', rawData: response.data };
+      }
+    } catch (error) {
+      console.error('Error fetching raw job data:', error);
+      return { error: error.message };
+    }
+  }
 };
 
 export default apiService; 

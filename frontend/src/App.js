@@ -113,28 +113,58 @@ function App() {
       // Poll for results
       const pollResults = async () => {
         try {
+          // Call raw debug method first if in development
+          if (process.env.NODE_ENV === 'development') {
+            try {
+              const rawData = await apiService.getRawJobData(jobId);
+              console.log('Debug raw data retrieved:', rawData);
+            } catch (debugErr) {
+              console.warn('Debug fetch failed:', debugErr);
+            }
+          }
+          
           const resultResponse = await apiService.getResults(jobId);
           
-          // Enhanced debug logging
-          console.log('Result response full object:', resultResponse);
-          console.log('Job ID:', resultResponse.id || resultResponse.job_id);
-          console.log('Model data:', resultResponse.model);
-          console.log('Model version:', resultResponse.model_version);
-          console.log('Prediction ID:', resultResponse.prediction_id);
-          console.log('all_renders present:', !!resultResponse.all_renders);
-          console.log('all_renders length:', resultResponse.all_renders ? resultResponse.all_renders.length : 0);
+          // Debug the response fully
+          console.log('%c === RESULT FULL DATA ===', 'background: #222; color: #bada55; font-size: 16px');
+          console.log('Raw result:', resultResponse);
+          console.log('ID fields:', {
+            id: resultResponse.id, 
+            job_id: resultResponse.job_id
+          });
+          console.log('Structure:', {
+            hasModelObject: !!resultResponse.model,
+            hasModelSelection: !!resultResponse.model_selection,
+            hasModelName: !!resultResponse.model_name,
+            hasModelVersion: !!resultResponse.model_version,
+            hasPredictionId: !!resultResponse.prediction_id
+          });
           
-          if (resultResponse.status === 'completed') {
-            setResult(resultResponse);
+          // Standardize response - add any missing fields for consistency
+          const standardizedResponse = {
+            ...resultResponse,
+            // Ensure id is available
+            id: resultResponse.id || resultResponse.job_id,
+            // Ensure model object exists
+            model: resultResponse.model || {
+              id: resultResponse.model_selection || 'adirik',
+              name: resultResponse.model_name || 'Adirik Interior Design',
+              cost_per_generation: resultResponse.model_cost || '$0.05'
+            }
+          };
+          
+          if (standardizedResponse.status === 'completed') {
+            setResult(standardizedResponse);
             setIsProcessing(false);
-          } else if (resultResponse.status === 'failed') {
-            setError(resultResponse.error || 'Generation failed');
+          } else if (standardizedResponse.status === 'failed') {
+            setError(standardizedResponse.error || 'Generation failed');
             setIsProcessing(false);
           } else {
             // Still processing, check again in 2 seconds
             setTimeout(pollResults, 2000);
           }
         } catch (err) {
+          console.error('Error in pollResults:', err);
           setError('Error checking results: ' + err.message);
           setIsProcessing(false);
         }
@@ -660,8 +690,8 @@ function App() {
 
               {/* Results - UPDATED with modern light design */}
               {result && (
-                <div className="max-w-6xl mx-auto">
-                  <div className="card-modern rounded-3xl p-8 shadow-2xl">
+                <div className="max-w-full w-full mx-auto">
+                  <div className="p-8">
                     <div className="text-center mb-8">
                       <h2 className="text-3xl font-bold text-gray-900 mb-2">
                         🎉 {t('app.designReady')}

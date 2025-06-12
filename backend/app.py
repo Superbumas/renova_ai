@@ -390,6 +390,8 @@ def get_results(job_id):
             'name': sanitize_for_json(job.get('model_name', 'Adirik Interior Design')),
             'cost_per_generation': sanitize_for_json(job.get('model_cost', '$0.05'))
         },
+        'model_version': sanitize_for_json(job.get('model_version', 'Standard')),
+        'prediction_id': job.get('prediction_id'),
         'prompt_info': {
             'prompt': sanitize_for_json(job.get('prompt')),
             'negative_prompt': sanitize_for_json(job.get('negative_prompt'))
