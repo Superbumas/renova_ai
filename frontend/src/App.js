@@ -656,46 +656,57 @@ function App() {
 
               {/* Results - UPDATED with modern light design */}
               {result && (
-                <div className="max-w-7xl mx-auto">
-                  <ResultDisplay 
-                    result={result}
-                    originalImage={uploadedImage}
-                    onReset={handleReset}
-                    measurements={measurements}
-                    roomType={selectedRoomType}
-                  />
-                  
-                  {/* Quick Refinements */}
-                  <div className="mt-8">
-                    <QuickRefinements
-                      currentResult={result}
-                      originalSettings={{
-                        style: selectedStyle,
-                        roomType: selectedRoomType,
-                        aiIntensity: aiIntensity,
-                        measurements: measurements,
-                        highQuality: highQuality
-                      }}
-                      onRefinementCompleted={handleRefinementCompleted}
-                      onError={handleRefinementError}
+                <div className="max-w-6xl mx-auto">
+                  <div className="card-modern rounded-3xl p-8 shadow-2xl">
+                    <div className="text-center mb-8">
+                      <h2 className="text-3xl font-bold text-gray-900 mb-2">
+                        🎉 {t('app.designReady')}
+                      </h2>
+                      <p className="text-gray-600">
+                        {t('app.transformedSpace')}
+                      </p>
+                    </div>
+                    
+                    <ResultDisplay 
+                      result={result}
+                      originalImage={uploadedImage}
+                      onReset={handleReset}
+                      measurements={measurements}
+                      roomType={selectedRoomType}
                     />
-                  </div>
-                  
-                  {/* Refinement Interface */}
-                  <div className="mt-6">
-                    <RefinementInterface
-                      currentResult={result}
-                      originalSettings={{
-                        style: selectedStyle,
-                        roomType: selectedRoomType,
-                        aiIntensity: aiIntensity,
-                        measurements: measurements,
-                        highQuality: highQuality
-                      }}
-                      onRefinementStarted={handleRefinementStarted}
-                      onRefinementCompleted={handleRefinementCompleted}
-                      onError={handleRefinementError}
-                    />
+                    
+                    {/* Quick Refinements */}
+                    <div className="mt-8">
+                      <QuickRefinements
+                        currentResult={result}
+                        originalSettings={{
+                          style: selectedStyle,
+                          roomType: selectedRoomType,
+                          aiIntensity: aiIntensity,
+                          measurements: measurements,
+                          highQuality: highQuality
+                        }}
+                        onRefinementCompleted={handleRefinementCompleted}
+                        onError={handleRefinementError}
+                      />
+                    </div>
+                    
+                    {/* Refinement Interface */}
+                    <div className="mt-6">
+                      <RefinementInterface
+                        currentResult={result}
+                        originalSettings={{
+                          style: selectedStyle,
+                          roomType: selectedRoomType,
+                          aiIntensity: aiIntensity,
+                          measurements: measurements,
+                          highQuality: highQuality
+                        }}
+                        onRefinementStarted={handleRefinementStarted}
+                        onRefinementCompleted={handleRefinementCompleted}
+                        onError={handleRefinementError}
+                      />
+                    </div>
                   </div>
                 </div>
               )}

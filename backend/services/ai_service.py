@@ -4,7 +4,6 @@ import requests
 from bs4 import BeautifulSoup
 from prompt_engine import PromptEngine
 from utils.helpers import extract_pinterest_image_url
-import traceback
 
 logger = logging.getLogger(__name__)
 
@@ -90,12 +89,15 @@ class AIService:
         
         # Sanitize room_type to ensure it's ASCII
         room_type = self._sanitize_prompt(room_type)
-
-        try:
-            # Use the prompt engine to generate comprehensive prompts
-            positive_prompt, negative_prompt = self.prompt_engine.generate_comprehensive_prompt(
-                mode=mode,
-                style=style, 
+        
+        # Use prompt engine to generate comprehensive base prompt
+        if mode == 'redesign':
+            # For redesign, we add spatial preservation as well
+            base_engine = self.prompt_engine
+            
+            # Generate the main prompt
+            positive_prompt = base_engine._generate_redesign_prompt(
+                style=style,
                 room_type=room_type,
                 ai_intensity=ai_intensity,
                 measurements=measurements,
@@ -103,35 +105,95 @@ class AIService:
                 room_analysis=room_analysis
             )
             
-            # Add extra quality enhancement
-            style_keywords = self._get_style_keywords(style)
-            positive_prompt = f"{positive_prompt} with {', '.join(style_keywords[:5])}"
+            # Generate structural preservation prompts
+            if ai_intensity < 0.3:
+                # Low intensity: very strict structural preservation
+                structure_preservation = base_engine._generate_structural_preservation(
+                    intensity_level="strict",
+                    measurements=measurements
+                )
+                positive_prompt = f"{positive_prompt} {structure_preservation}"
+            elif ai_intensity < 0.7:
+                # Medium intensity: balanced preservation
+                structure_preservation = base_engine._generate_structural_preservation(
+                    intensity_level="balanced",
+                    measurements=measurements
+                )
+                positive_prompt = f"{positive_prompt} {structure_preservation}"
+            # For high intensity, we omit structure preservation to allow more creative freedom
             
-            # Add critical functional requirements to positive prompt
-            positive_prompt += " CRITICAL FUNCTIONAL REQUIREMENTS: exactly one faucet per sink, logical placement of appliances, proper workflow triangle, single hood over stove only, appropriate number of fixtures."
+            # Add functional correctness requirements
+            positive_prompt += " FUNCTIONAL REQUIREMENTS: one sink with one faucet per sink, logical placement of appliances, proper workflow triangle, single hood over stove, appropriate number of fixtures."
             
-            # Add explicit negative prompts to prevent common issues
-            negative_prompt += ", multiple stovetops, two cookers, duplicated appliances, missing sink, floating fixtures"
+        else:  # Design mode
+            # Design mode: create from scratch with style guidance but no structural preservation
+            positive_prompt = self.prompt_engine._generate_design_prompt(
+                style=style,
+                room_type=room_type,
+                measurements=measurements,
+                inspiration_description=inspiration_description,
+                room_analysis=room_analysis
+            )
             
-            # Log the prompts for debugging
-            logger.info(f"Enhanced {mode} prompt: {positive_prompt[:100]}...")
-            logger.info(f"Enhanced negative prompt: {negative_prompt[:80]}...")
+            # Add functional correctness requirements for design mode too
+            positive_prompt += " FUNCTIONAL REQUIREMENTS: one sink with one faucet per sink, logical placement of appliances, proper workflow triangle, single hood over stove, appropriate number of fixtures."
+        
+        # Extract style-specific keywords that enhance quality
+        style_keywords = self._get_style_keywords(style)
+        
+        # Add style-specific keywords for better quality
+        positive_prompt = f"{positive_prompt} with {', '.join(style_keywords[:5])}"
+        
+        # Add inspiration elements if available
+        if inspiration_description:
+            # Keep inspiration description concise but extract key style elements
+            words = inspiration_description.split()
             
-            return positive_prompt, negative_prompt
+            # Extract style keywords that enhance quality
+            quality_keywords = [word for word in words if word.lower() in [
+                "luxury", "elegant", "sophisticated", "premium", "high-end", "designer",
+                "modern", "contemporary", "minimalist", "classic", "traditional",
+                "rustic", "industrial", "scandinavian", "bohemian", "coastal",
+                "marble", "wood", "brass", "gold", "steel", "glass", "leather",
+                "chandelier", "pendant", "recessed", "hidden", "integrated"
+            ]]
             
-        except Exception as e:
-            # Log the error
-            logger.error(f"Error in comprehensive prompt generation: {str(e)}")
-            logger.error(traceback.format_exc())
-            
-            # Generate fallback prompts
-            positive_prompt = self._generate_fallback_prompt(style, room_type)
-            negative_prompt = self._generate_fallback_negative_prompt()
-            
-            logger.info(f"Using fallback prompt: {positive_prompt}")
-            
-            return positive_prompt, negative_prompt
-    
+            # Prioritize quality keywords in the inspiration
+            if quality_keywords:
+                quality_terms = " ".join(quality_keywords)
+                inspiration_elements = f"{quality_terms} with " + ' '.join(words[:30])
+            else:
+                inspiration_elements = ' '.join(words[:50])
+                
+            positive_prompt = f"{positive_prompt} with {inspiration_elements}"
+        
+        # Build negative prompt using Replicate playground example with quality enhancements
+        negative_prompt = "lowres, watermark, banner, logo, watermark, contactinfo, text, deformed, "
+        negative_prompt += "blurry, blur, out of focus, out of frame, surreal, extra, ugly, "
+        negative_prompt += "upholstered walls, fabric walls, plush walls, mirror, mirrored, functional, "
+        negative_prompt += "grainy, pixelated, unrealistic lighting, poor composition, low contrast, muddy colors, "
+        negative_prompt += "amateur, unprofessional, crooked angles, flat lighting, dull materials, cartoon style, "
+        negative_prompt += "dark, underexposed, dim, unrealistic architecture, impossible layout, warped, "
+        negative_prompt += "unrealistic proportions, floating elements, incoherent design, distorted perspective, "
+        
+        # Explicitly address duplicate fixture issues
+        negative_prompt += "multiple faucets on one sink, duplicate fixtures, too many faucets, multiple range hoods, "
+        negative_prompt += "illogical fixture placement, duplicate appliances, unrealistic fixture arrangement, "
+        negative_prompt += "nonsensical plumbing, misaligned fixtures, impractical design, extra taps, "
+        negative_prompt += "floating fixtures, double faucets, triple faucets, unrealistic kitchen layout, "
+        
+        # If in redesign mode with medium-high preservation, add strong negative prompts to preserve structure
+        if mode == 'redesign' and ai_intensity < 0.7:
+            negative_prompt += "changed wall layout, moved windows, moved doors, structurally impossible, "
+            negative_prompt += "different floor plan, changed ceiling height, moved plumbing fixtures, "
+            negative_prompt += "architecturally unrealistic, non-structural changes, structural changes"
+        
+        # Log the prompts for debugging
+        logger.info(f"Generated {mode} prompt: {positive_prompt[:100]}...")
+        logger.info(f"Generated negative prompt: {negative_prompt[:80]}...")
+        
+        return positive_prompt, negative_prompt
+        
     def _get_style_keywords(self, style: str) -> List[str]:
         """Get style-specific keywords for enhancing prompt quality"""
         style_keywords = {
