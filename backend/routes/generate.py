@@ -96,16 +96,15 @@ def generate_design():
             # Process image
             processed_image = image_processor.process_image(image)
             
-            # Generate prompts
-            measurement_context = create_measurement_context(measurements, room_dimensions) if measurements else None
+            # Generate prompts using existing method
+            room_type = measurements.get('roomType') if measurements else 'room'
             positive_prompt, negative_prompt = ai_service.generate_comprehensive_prompt(
                 mode=mode,
                 style=style,
-                room_type=measurements.get('roomType', 'kitchen') if measurements else 'kitchen',
+                room_type=room_type,
                 ai_intensity=ai_intensity,
                 measurements=measurements,
-                inspiration_description=None,
-                room_analysis=None
+                inspiration_description=inspiration_image
             )
             
             # Start Replicate prediction
