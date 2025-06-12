@@ -7,7 +7,7 @@ from io import BytesIO
 from flask import Blueprint, request, jsonify, current_app
 from PIL import Image
 import numpy as np
-from utils.helpers import create_measurement_context, sanitize_text
+from utils.helpers import create_measurement_context
 from spatial_layout_engine import SpatialLayoutEngine
 import os
 
@@ -37,120 +37,33 @@ def generate_design():
     logger.info("=== GENERATE DESIGN REQUEST RECEIVED ===")
     
     try:
-        # Get services from app config
-        ai_service = current_app.config['AI_SERVICE']
-        image_processor = current_app.config['IMAGE_PROCESSOR']
-        replicate_client = current_app.config['REPLICATE_CLIENT']
-        db_service = current_app.config['DB_SERVICE']
-        
         data = request.get_json()
-        logger.info(f"Request data received: {list(data.keys()) if data else 'No data'}")
-        
         if not data:
-            logger.error("No data provided in request")
             return jsonify({'error': 'No data provided'}), 400
-        
+            
         # Extract parameters
         image_data = data.get('image')
-        mode = sanitize_text(data.get('mode'))
-        style = sanitize_text(data.get('style', 'Modern'))
+        mode = data.get('mode')
+        style = data.get('style')
         inspiration_image = data.get('inspirationImage')
-        measurements = data.get('measurements', [])
+        measurements = data.get('measurements')
         room_dimensions = data.get('roomDimensions')
-        room_type = sanitize_text(data.get('roomType', 'kitchen'))
-        ai_intensity = float(data.get('aiIntensity', 0.5))
-        num_renders = int(data.get('numRenders', 1))
-        high_quality = bool(data.get('highQuality', False))
-        private_render = bool(data.get('privateRender', False))
-        advanced_mode = bool(data.get('advancedMode', False))
-        model_selection = sanitize_text(data.get('modelType', 'adirik'))
+        ai_intensity = data.get('aiIntensity', 0.5)
+        num_renders = data.get('numRenders', 1)
+        high_quality = data.get('highQuality', False)
+        private_render = data.get('privateRender', False)
+        advanced_mode = data.get('advancedMode', False)
         
-        # Generate unique job ID
+        if not image_data or not mode or not style:
+            return jsonify({'error': 'Missing required parameters'}), 400
+            
+        # Create job ID
         job_id = str(uuid.uuid4())
         
-        # Log sanitized inputs
-        logger.info(f"Job {job_id}: Sanitized input - mode: {mode}, style: {style}, room_type: {room_type}")
-        logger.info(f"Parameters: mode={mode}, style={style}, room_type={room_type}")
-        logger.info(f"Advanced: ai_intensity={ai_intensity}, num_renders={num_renders}, high_quality={high_quality}")
-        logger.info(f"Room dimensions provided: {bool(room_dimensions)}")
-        
-        # Validate required parameters
-        if not image_data:
-            logger.error("No image provided")
-            return jsonify({'error': 'Image is required'}), 400
-        
-        if not mode:
-            logger.error("No mode specified")
-            return jsonify({'error': 'Mode is required (redesign or design)'}), 400
-        
-        if not replicate_client:
-            logger.error("Replicate client not available")
-            return jsonify({'error': 'AI service not available. Please check configuration.'}), 500
-        
-        logger.info(f"Job {job_id}: Starting {mode} with style: {style}")
-        
-        # Process and save image
-        logger.info(f"Job {job_id}: Processing image data...")
-        
-        try:
-            # Clean the base64 data
-            if ',' in image_data:
-                image_data = image_data.split(',')[1]
-            
-            # Decode and save image
-            image_bytes = base64.b64decode(image_data)
-            image = Image.open(BytesIO(image_bytes))
-            
-            # Save image to uploads directory
-            image_path = f"uploads/{job_id}.png"
-            image.save(image_path)
-            
-            logger.info(f"Job {job_id}: Image saved to {image_path}, size: {image.size}")
-            
-        except Exception as e:
-            logger.error(f"Job {job_id}: Image processing failed: {str(e)}")
-            return jsonify({'error': f'Image processing failed: {str(e)}'}), 400
-        
-        # Generate comprehensive prompts
-        logger.info(f"Job {job_id}: Generating comprehensive prompts...")
-        try:
-            positive_prompt, negative_prompt = ai_service.generate_comprehensive_prompt(
-                mode=mode,
-                style=style,
-                room_type=room_type,
-                ai_intensity=ai_intensity,
-                measurements=measurements,
-                inspiration_description=None,
-                room_analysis=None
-            )
-            
-            logger.info(f"Job {job_id}: Prompts generated successfully")
-            logger.info(f"Job {job_id}: Positive prompt: {positive_prompt[:200]}...")
-            
-        except Exception as e:
-            logger.error(f"Job {job_id}: Prompt generation failed: {str(e)}")
-            return jsonify({'error': f'Prompt generation failed: {str(e)}'}), 500
-        
-        # Store additional model information
-        model_info = {
-            'adirik': {
-                'name': 'Adirik Interior Design',
-                'cost_per_generation': '$0.05'
-            },
-            'erayyavuz': {
-                'name': 'Erayyavuz Interior AI',
-                'cost_per_generation': '$0.25'
-            }
-        }
-        
-        # Get model cost information
-        model_cost = model_info.get(model_selection, {}).get('cost_per_generation', 'Unknown')
-        model_name = model_info.get(model_selection, {}).get('name', model_selection)
-        
-        # Create job in database
+        # Create job data
         job_data = {
             'id': job_id,
-            'status': 'processing',
+            'status': 'pending',
             'mode': mode,
             'style': style,
             'ai_intensity': ai_intensity,
@@ -158,160 +71,82 @@ def generate_design():
             'high_quality': high_quality,
             'private_render': private_render,
             'advanced_mode': advanced_mode,
-            'model_selection': model_selection,
-            'model_name': model_name,
-            'model_cost': model_cost,
-            'room_type': room_type,
-            'prompt': positive_prompt,
-            'negative_prompt': negative_prompt,
-            'room_dimensions': room_dimensions
+            'room_type': measurements.get('roomType') if measurements else None,
+            'room_dimensions': room_dimensions,
+            'spatial_layout': measurements.get('spatialLayout') if measurements else None
         }
         
-        try:
-            db_service.create_job(job_data)
-        except Exception as e:
-            logger.error(f"Job {job_id}: Failed to create job in database: {str(e)}")
+        # Get services from app context
+        db_service = current_app.config['DB_SERVICE']
+        ai_service = current_app.config['AI_SERVICE']
+        image_processor = current_app.config['IMAGE_PROCESSOR']
+        replicate_client = current_app.config['REPLICATE_CLIENT']
+        
+        # Create job in database
+        job = db_service.create_job(job_data)
+        if not job:
             return jsonify({'error': 'Failed to create job'}), 500
-        
-        # Process image for AI generation
-        logger.info(f"Job {job_id}: Processing image for AI generation...")
+            
+        # Process image
         try:
-            processing_info = image_processor.process_image_for_ai(image_path, ai_intensity)
-            logger.info(f"Job {job_id}: Image processing completed - mode: {processing_info['mode']}")
-        except Exception as e:
-            logger.error(f"Job {job_id}: Image processing failed: {str(e)}")
-            processing_info = {'mode': 'img2img', 'mask_path': None, 'strength_adjustment': 1.0}
-        
-        # Get model parameters
-        model_params = ai_service.get_model_parameters(ai_intensity, high_quality, mode)
-        
-        # Prepare for Replicate API call
-        logger.info(f"Job {job_id}: Preparing Replicate API call...")
-        
-        # Select model based on user choice
-        if model_selection == 'erayyavuz':
-            model_version = "erayyavuz/interior-ai:e299c531485aac511610a878ef44b554381355de5ee032d109fcae5352f39fa9"
-            logger.info(f"Job {job_id}: Using erayyavuz/interior-ai model (Cost: $0.25 per generation)")
+            # Decode base64 image
+            image_bytes = base64.b64decode(image_data.split(',')[1])
+            image = Image.open(BytesIO(image_bytes))
             
-            base_url = os.getenv('BACKEND_URL', 'https://renova.andrius.cloud')
-            image_url = f"{base_url}/uploads/{job_id}.png"
+            # Process image
+            processed_image = image_processor.process_image(image)
             
-            replicate_input = {
-                "image": image_url,
-                "prompt": positive_prompt,
-                "negative_prompt": negative_prompt,
-                "strength": model_params.get('prompt_strength', 0.8),
-                "num_inference_steps": model_params.get('num_inference_steps', 60),
-                "guidance_scale": model_params.get('guidance_scale', 15),
-                "width": model_params.get('width', 768),
-                "height": model_params.get('height', 768),
-                "seed": model_params.get('seed')
-            }
+            # Generate prompts
+            measurement_context = create_measurement_context(measurements, room_dimensions) if measurements else None
+            prompts = ai_service.generate_prompts(
+                style=style,
+                mode=mode,
+                measurement_context=measurement_context,
+                inspiration_image=inspiration_image
+            )
             
-            if high_quality:
-                replicate_input.update({
-                    "num_inference_steps": 85,
-                    "width": 1024,
-                    "height": 1024,
-                    "guidance_scale": 20
-                })
-                
-        else:
-            model_version = "adirik/interior-design:76604baddc85b1b4616e1c6475eca080da339c8875bd4996705440484a6eac38"
-            logger.info(f"Job {job_id}: Using Adirik interior design model")
-            
-            replicate_input = {
-                "image": f"data:image/png;base64,{image_data}",
-                "prompt": positive_prompt,
-                "negative_prompt": negative_prompt,
-                "prompt_strength": model_params.get('prompt_strength', 0.8),
-                "num_inference_steps": model_params.get('num_inference_steps', 60),
-                "guidance_scale": model_params.get('guidance_scale', 15),
-                "scheduler": model_params.get('scheduler', 'DPM_PLUS_PLUS_2M'),
-                "width": model_params.get('width', 768),
-                "height": model_params.get('height', 768),
-                "num_outputs": 1,
-                "disable_safety_checker": True,
-                "seed": model_params.get('seed')
-            }
-            
-            if high_quality:
-                replicate_input.update({
-                    "num_inference_steps": 85,
-                    "width": 1024,
-                    "height": 1024,
-                    "guidance_scale": 20,
-                    "scheduler": "DDIM"
-                })
-        
-        # Log the selected model and parameters
-        logger.info(f"Job {job_id}: Using model: {model_version}")
-        logger.info(f"Job {job_id}: Model parameters - steps: {replicate_input.get('num_inference_steps')}, " + 
-                   f"guidance_scale: {replicate_input.get('guidance_scale')}, " +
-                   f"dimensions: {replicate_input.get('width')}x{replicate_input.get('height')}")
-        
-        # Execute Replicate prediction
-        logger.info(f"Job {job_id}: Starting Replicate prediction with model: {model_version}")
-        try:
+            # Start Replicate prediction
             prediction = replicate_client.predictions.create(
-                version=model_version,
-                input=replicate_input
+                version="stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
+                input={
+                    "prompt": prompts['positive'],
+                    "negative_prompt": prompts['negative'],
+                    "image": processed_image,
+                    "num_outputs": num_renders,
+                    "scheduler": "K_EULER",
+                    "num_inference_steps": 50,
+                    "guidance_scale": 7.5,
+                    "prompt_strength": 0.8,
+                    "high_noise_frac": 0.8 if high_quality else 0.5
+                }
             )
             
             # Update job with prediction info
-            db_service.update_job(job_id, {
-                'prediction_id': prediction.id,
-                'model_version': model_version
-            })
-            
-            logger.info(f"Job {job_id}: Replicate prediction started with ID: {prediction.id}")
+            job.prediction_id = prediction.id
+            job.model_version = prediction.version
+            job.prompt = prompts['positive']
+            job.negative_prompt = prompts['negative']
+            job.status = 'processing'
+            db_service.update_job(job.id, job.to_dict())
             
             return jsonify({
-                'success': True,
                 'job_id': job_id,
-                'prediction_id': prediction.id,
                 'status': 'processing',
-                'message': 'Design generation started successfully',
-                'estimated_time': '60-120 seconds'
+                'message': 'Generation started successfully'
             })
             
         except Exception as e:
-            error_message = str(e)
-            logger.error(f"Job {job_id}: Replicate prediction failed: {error_message}")
-            
-            # Handle character encoding issues
-            if "non-ASCII" in error_message or "UnicodeEncodeError" in error_message or "codec can't encode" in error_message:
-                logger.error(f"Job {job_id}: Detected character encoding issue - non-English characters in prompt")
-                db_service.update_job(job_id, {
-                    'status': 'failed',
-                    'error': 'Non-English characters detected in prompt. Please use English style names only.'
-                })
-                return jsonify({
-                    'job_id': job_id,
-                    'status': 'failed',
-                    'error': 'Non-English characters detected in prompt. Please use English style names only.'
-                })
-            
-            # Handle other errors
-            db_service.update_job(job_id, {
-                'status': 'failed',
-                'error': f'Prediction failed: {error_message}'
-            })
-            return jsonify({
-                'job_id': job_id,
-                'status': 'failed',
-                'error': f'Prediction failed: {error_message}'
-            })
+            logger.error(f"Error processing image: {str(e)}")
+            logger.error(traceback.format_exc())
+            job.status = 'failed'
+            job.error = str(e)
+            db_service.update_job(job.id, job.to_dict())
+            return jsonify({'error': 'Failed to process image'}), 500
             
     except Exception as e:
-        error_msg = f"Unexpected error in generate_design: {str(e)}"
-        logger.error(error_msg)
+        logger.error(f"Error in generate_design: {str(e)}")
         logger.error(traceback.format_exc())
-        
-        return jsonify({
-            'success': False,
-            'error': error_msg
-        }), 500
+        return jsonify({'error': 'Internal server error'}), 500
 
 @generate_bp.route('/results/<job_id>', methods=['GET'])
 def get_results(job_id):
@@ -327,78 +162,27 @@ def get_results(job_id):
         if not job:
             return jsonify({'error': 'Job not found'}), 404
         
-        # Check if this is a job with a prediction ID that needs checking
-        if job.get('prediction_id') and job.get('status') == 'processing' and replicate_client:
+        # If job is still processing, check status
+        if job.status == 'processing' and job.prediction_id:
             try:
-                # Check the Replicate prediction status
-                prediction = replicate_client.predictions.get(job['prediction_id'])
-                logger.info(f"Job {job_id} prediction status: {prediction.status}")
-                
+                prediction = replicate_client.predictions.get(job.prediction_id)
                 if prediction.status == 'succeeded':
-                    # Update job with results
-                    result_url = prediction.output[0] if isinstance(prediction.output, list) else prediction.output
-                    db_service.update_job(job_id, {
-                        'status': 'completed',
-                        'result_url': result_url,
-                        'all_renders': [result_url] if result_url else []
-                    })
-                    logger.info(f"Job {job_id} completed successfully")
-                    
+                    job.status = 'completed'
+                    job.result_url = prediction.output[0] if prediction.output else None
+                    db_service.update_job(job.id, job.to_dict())
                 elif prediction.status == 'failed':
-                    # Update job with failure
-                    error_msg = getattr(prediction, 'error', 'Generation failed')
-                    db_service.update_job(job_id, {
-                        'status': 'failed',
-                        'error': str(error_msg)
-                    })
-                    logger.error(f"Job {job_id} failed: {error_msg}")
-                    
-                elif prediction.status == 'canceled':
-                    db_service.update_job(job_id, {
-                        'status': 'failed',
-                        'error': 'Generation was canceled'
-                    })
-                    logger.warning(f"Job {job_id} was canceled")
-                
+                    job.status = 'failed'
+                    job.error = prediction.error
+                    db_service.update_job(job.id, job.to_dict())
             except Exception as e:
-                logger.error(f"Error checking prediction {job.get('prediction_id')}: {str(e)}")
+                logger.error(f"Error checking prediction status: {str(e)}")
         
-        # Get updated job data
-        job = db_service.get_job(job_id)
-        
-        # Return job status and any available results
-        result = {
-            'status': job.get('status', 'unknown'),
-            'job_id': job_id,
-            'mode': job.get('mode'),
-            'style': job.get('style'),
-            'timestamp': job.get('created_at'),
-            'model': {
-                'id': job.get('model_selection'),
-                'name': job.get('model_name'),
-                'cost_per_generation': job.get('model_cost')
-            },
-            'prompt_info': {
-                'prompt': job.get('prompt'),
-                'negative_prompt': job.get('negative_prompt')
-            }
-        }
-        
-        # Add result URL if available
-        if job.get('result_url'):
-            result['result_url'] = job['result_url']
-        
-        # Add error if present
-        if job.get('error'):
-            result['error'] = job.get('error')
-        
-        logger.info(f"Returning results for job {job_id}: status={result['status']}")
-        
-        return jsonify(result)
+        return jsonify(job.to_dict())
         
     except Exception as e:
-        logger.error(f"Error getting results for job {job_id}: {str(e)}")
-        return jsonify({'error': f'Error getting results: {str(e)}'}), 500
+        logger.error(f"Error in get_results: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': 'Internal server error'}), 500
 
 @generate_bp.route('/jobs', methods=['GET'])
 def list_jobs():
@@ -406,10 +190,11 @@ def list_jobs():
     try:
         db_service = current_app.config['DB_SERVICE']
         jobs = db_service.list_jobs()
-        return jsonify({'jobs': jobs})
+        return jsonify([job.to_dict() for job in jobs])
     except Exception as e:
-        logger.error(f"Error listing jobs: {str(e)}")
-        return jsonify({'error': f'Error listing jobs: {str(e)}'}), 500
+        logger.error(f"Error in list_jobs: {str(e)}")
+        logger.error(traceback.format_exc())
+        return jsonify({'error': 'Internal server error'}), 500
 
 @generate_bp.route('/generate-layout', methods=['POST'])
 def generate_layout():
