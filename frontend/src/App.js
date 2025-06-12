@@ -115,8 +115,12 @@ function App() {
         try {
           const resultResponse = await apiService.getResults(jobId);
           
-          // Debug: log the response to see if all_renders is present
-          console.log('Result response:', resultResponse);
+          // Enhanced debug logging
+          console.log('Result response full object:', resultResponse);
+          console.log('Job ID:', resultResponse.id || resultResponse.job_id);
+          console.log('Model data:', resultResponse.model);
+          console.log('Model version:', resultResponse.model_version);
+          console.log('Prediction ID:', resultResponse.prediction_id);
           console.log('all_renders present:', !!resultResponse.all_renders);
           console.log('all_renders length:', resultResponse.all_renders ? resultResponse.all_renders.length : 0);
           

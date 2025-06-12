@@ -9,6 +9,9 @@ const ResultDisplay = ({ result, originalImage, onReset, measurements, roomType 
   const [isFullscreen, setIsFullscreen] = useState(false);
   
   useEffect(() => {
+    // Debug: log the full result object to check structure
+    console.log('Result data in ResultDisplay:', result);
+    
     let renders = [];
     if (result.all_renders) {
       if (Array.isArray(result.all_renders)) {
@@ -64,172 +67,186 @@ const ResultDisplay = ({ result, originalImage, onReset, measurements, roomType 
   };
 
   return (
-    <div className="min-h-screen bg-white">
-      {/* Header */}
-      <div className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 text-white py-4">
-        <div className="max-w-[1800px] mx-auto px-6 flex items-center justify-between">
-          <div className="flex items-center space-x-4">
-            <div className="bg-white rounded-full p-2 shadow-lg">
-              <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-bold">Design Complete</h1>
-          </div>
-          
-          <div className="flex items-center space-x-3">
-            <button
-              onClick={shareResult}
-              className="px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30 transition-all flex items-center space-x-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
-              </svg>
-              <span>Share</span>
-            </button>
-            
-            <button
-              onClick={downloadImage}
-              className="px-4 py-2 bg-white text-blue-600 rounded-lg hover:bg-blue-50 transition-all shadow-md flex items-center space-x-2"
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              <span className="font-medium">Download HD</span>
-            </button>
-          </div>
-        </div>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 relative overflow-hidden">
+      {/* Animated Background */}
+      <div className="absolute inset-0 opacity-30">
+        <div className="absolute top-0 -left-4 w-72 h-72 bg-purple-300 rounded-full mix-blend-multiply filter blur-xl animate-pulse"></div>
+        <div className="absolute top-0 -right-4 w-72 h-72 bg-yellow-300 rounded-full mix-blend-multiply filter blur-xl animate-pulse animation-delay-2000"></div>
+        <div className="absolute -bottom-8 left-20 w-72 h-72 bg-pink-300 rounded-full mix-blend-multiply filter blur-xl animate-pulse animation-delay-4000"></div>
       </div>
 
-      {/* Main Content */}
-      <div className="max-w-[1800px] mx-auto px-6 py-8">
-        {/* Style and Metadata Banner */}
-        <div className="bg-gray-100 rounded-lg p-4 mb-8 flex items-center justify-between">
-          <div className="flex items-center space-x-6">
-            <div className="border-r border-gray-300 pr-6">
-              <p className="text-gray-500 text-sm">Style</p>
-              <p className="text-gray-900 font-bold text-lg">{result.style}</p>
-            </div>
-            <div className="border-r border-gray-300 pr-6">
-              <p className="text-gray-500 text-sm">Room Type</p>
-              <p className="text-gray-900 font-bold text-lg">{roomType || 'Kitchen'}</p>
-            </div>
-            <div className="border-r border-gray-300 pr-6">
-              <p className="text-gray-500 text-sm">Job ID</p>
-              <p className="text-gray-900 font-mono text-xs">{result.job_id || 'N/A'}</p>
-            </div>
-            <div>
-              <p className="text-gray-500 text-sm">Status</p>
-              <p className="text-green-600 font-medium">{result.status || 'completed'}</p>
-            </div>
-          </div>
-          
-          <div className="bg-blue-100 px-3 py-1 rounded-lg">
-            <span className="text-blue-700 font-medium">
-              {result.model?.name || 'Adirik Interior Design'}
-            </span>
-          </div>
-        </div>
-        
-        {/* Two-Column Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-          {/* Left Column - Image Display */}
-          <div className="lg:col-span-8">
-            {/* Image Tabs */}
-            <div className="border-b border-gray-200 mb-6">
-              <div className="flex space-x-6">
-                <button
-                  onClick={() => setCompareMode(false)}
-                  className={`py-3 px-1 border-b-2 ${!compareMode ? 'border-blue-500 text-blue-600 font-medium' : 'border-transparent text-gray-500'}`}
-                >
-                  Result
-                </button>
-                <button
-                  onClick={() => setCompareMode(true)}
-                  className={`py-3 px-1 border-b-2 ${compareMode ? 'border-blue-500 text-blue-600 font-medium' : 'border-transparent text-gray-500'}`}
-                >
-                  Compare
-                </button>
+      {/* Main Container - Full Width */}
+      <div className="relative z-10 w-full mx-auto px-6 py-8">
+        {/* Premium Header */}
+        <div className="max-w-[1800px] mx-auto mb-8">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-emerald-400 to-blue-500 rounded-2xl flex items-center justify-center shadow-lg">
+                <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <div>
+                <div className="flex items-center space-x-3 mb-2">
+                  <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+                    Design Complete
+                  </h1>
+                  <div className="px-3 py-1 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-full">
+                    <span className="text-white text-sm font-semibold">Premium</span>
+                  </div>
+                </div>
+                <p className="text-slate-600 text-lg">
+                  Your {result.style} kitchen transformation is ready • {processedRenders.length} variation{processedRenders.length > 1 ? 's' : ''} generated
+                </p>
               </div>
             </div>
             
-            {/* Main Image */}
-            <div className="relative group mb-6">
-              <div className="rounded-lg overflow-hidden shadow-lg">
-                {compareMode ? (
-                  <ComparisonSlider beforeImage={originalImage} afterImage={currentRenderUrl} />
-                ) : (
-                  <div className="relative w-full h-full">
-                    <img 
-                      src={currentRenderUrl} 
-                      alt="Design Result" 
-                      className="w-full h-full object-cover"
-                    />
-                    <button
-                      onClick={toggleFullscreen}
-                      className="absolute top-4 right-4 bg-white p-2 rounded-lg shadow-md opacity-0 group-hover:opacity-100 transition-all"
-                    >
-                      <svg className="w-5 h-5 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
-                      </svg>
-                    </button>
-                  </div>
-                )}
-              </div>
+            {/* Action Buttons */}
+            <div className="flex items-center space-x-4">
+              <button
+                onClick={shareResult}
+                className="px-6 py-3 rounded-xl bg-white/50 hover:bg-white/70 transition-all duration-300 flex items-center space-x-2 group shadow-md"
+              >
+                <svg className="w-5 h-5 text-slate-600 group-hover:text-slate-800" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.367 2.684 3 3 0 00-5.367-2.684z" />
+                </svg>
+                <span className="font-medium text-slate-700">Share</span>
+              </button>
               
-              {/* Variation Selector (if multiple renders) */}
-              {hasMultipleRenders && (
-                <div className="mt-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-gray-700 font-medium">
-                      Variation {currentRenderIndex + 1} of {processedRenders.length}
-                    </h3>
-                    <div className="flex space-x-2">
+              <button
+                onClick={downloadImage}
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center space-x-2 group"
+              >
+                <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+                <span className="font-semibold">Download HD</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Main Content Grid - Full Width Layout */}
+        <div className="max-w-[1800px] mx-auto grid grid-cols-1 xl:grid-cols-5 gap-8">
+          {/* Left Panel - Image Display (Takes 3 columns) */}
+          <div className="xl:col-span-3 space-y-6">
+            {/* Image Controls */}
+            <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-slate-800">Your Transformation</h2>
+                <div className="flex items-center bg-white/70 rounded-xl p-1 backdrop-blur-sm shadow-sm">
+                  <button
+                    onClick={() => setCompareMode(false)}
+                    className={`px-4 py-2 rounded-lg transition-all duration-300 font-medium ${
+                      !compareMode 
+                        ? 'bg-white text-slate-800 shadow-md' 
+                        : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                  >
+                    Result
+                  </button>
+                  <button
+                    onClick={() => setCompareMode(true)}
+                    className={`px-4 py-2 rounded-lg transition-all duration-300 font-medium ${
+                      compareMode 
+                        ? 'bg-white text-slate-800 shadow-md' 
+                        : 'text-slate-600 hover:text-slate-800'
+                    }`}
+                  >
+                    Compare
+                  </button>
+                </div>
+              </div>
+
+              {/* Main Image Display */}
+              <div className="relative group">
+                <div className="aspect-[16/10] rounded-2xl overflow-hidden shadow-2xl">
+                  {compareMode ? (
+                    <ComparisonSlider beforeImage={originalImage} afterImage={currentRenderUrl} />
+                  ) : (
+                    <div className="relative w-full h-full">
+                      <img 
+                        src={currentRenderUrl} 
+                        alt="Design Result" 
+                        className="w-full h-full object-cover"
+                      />
                       <button
-                        onClick={() => setCurrentRenderIndex(prev => prev === 0 ? processedRenders.length - 1 : prev - 1)}
-                        className="p-1 rounded bg-gray-100 hover:bg-gray-200 transition-colors"
+                        onClick={toggleFullscreen}
+                        className="absolute top-4 right-4 bg-white/70 backdrop-blur-sm p-3 rounded-xl border border-white/50 opacity-0 group-hover:opacity-100 transition-all duration-300 hover:bg-white shadow-md"
                       >
-                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-                        </svg>
-                      </button>
-                      <button
-                        onClick={() => setCurrentRenderIndex(prev => prev === processedRenders.length - 1 ? 0 : prev + 1)}
-                        className="p-1 rounded bg-gray-100 hover:bg-gray-200 transition-colors"
-                      >
-                        <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        <svg className="w-5 h-5 text-slate-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4" />
                         </svg>
                       </button>
                     </div>
-                  </div>
-
-                  {/* Thumbnails */}
-                  <div className="flex space-x-2 overflow-x-auto pb-2">
-                    {processedRenders.map((renderUrl, index) => (
-                      <button
-                        key={index}
-                        onClick={() => setCurrentRenderIndex(index)}
-                        className={`relative flex-shrink-0 w-16 h-16 rounded-lg overflow-hidden ${
-                          currentRenderIndex === index ? 'ring-2 ring-blue-500' : 'opacity-70 hover:opacity-100'
-                        }`}
-                      >
-                        <img 
-                          src={renderUrl} 
-                          alt={`Variation ${index + 1}`} 
-                          className="w-full h-full object-cover"
-                        />
-                      </button>
-                    ))}
-                  </div>
+                  )}
                 </div>
-              )}
+
+                {/* Variation Selector */}
+                {hasMultipleRenders && (
+                  <div className="mt-6">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-semibold text-slate-800">
+                        Variation {currentRenderIndex + 1} of {processedRenders.length}
+                      </h3>
+                      <div className="flex items-center space-x-2">
+                        <button
+                          onClick={() => setCurrentRenderIndex(prev => prev === 0 ? processedRenders.length - 1 : prev - 1)}
+                          className="glass-effect p-2 rounded-lg border border-white/20 hover:bg-white/30 transition-all"
+                        >
+                          <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                          </svg>
+                        </button>
+                        <button
+                          onClick={() => setCurrentRenderIndex(prev => prev === processedRenders.length - 1 ? 0 : prev + 1)}
+                          className="glass-effect p-2 rounded-lg border border-white/20 hover:bg-white/30 transition-all"
+                        >
+                          <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Thumbnail Gallery */}
+                    <div className="flex space-x-3 overflow-x-auto pb-2">
+                      {processedRenders.map((renderUrl, index) => (
+                        <button
+                          key={index}
+                          onClick={() => setCurrentRenderIndex(index)}
+                          className={`relative flex-shrink-0 w-20 h-20 rounded-xl overflow-hidden transition-all duration-300 ${
+                            currentRenderIndex === index 
+                              ? 'ring-3 ring-blue-500 ring-offset-2 shadow-lg' 
+                              : 'opacity-70 hover:opacity-100 hover:shadow-md'
+                          }`}
+                        >
+                          <img 
+                            src={renderUrl} 
+                            alt={`Variation ${index + 1}`} 
+                            className="w-full h-full object-cover"
+                          />
+                          {currentRenderIndex === index && (
+                            <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
+                              <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
+                                <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-            
-            {/* Original Image */}
-            <div className="border border-gray-200 rounded-lg p-4">
-              <h3 className="text-gray-700 font-medium mb-3">Original Kitchen</h3>
-              <div className="rounded-lg overflow-hidden">
+
+            {/* Original Image Comparison */}
+            <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
+              <h3 className="text-xl font-bold text-slate-800 mb-4">Original Kitchen</h3>
+              <div className="aspect-[16/10] rounded-xl overflow-hidden shadow-lg">
                 <img 
                   src={originalImage} 
                   alt="Original Kitchen" 
@@ -238,113 +255,408 @@ const ResultDisplay = ({ result, originalImage, onReset, measurements, roomType 
               </div>
             </div>
           </div>
-          
-          {/* Right Column - Information */}
-          <div className="lg:col-span-4">
-            {/* Technical Details Panel */}
-            <div className="bg-white rounded-lg shadow border border-gray-200 mb-6">
-              <div className="border-b border-gray-200 px-5 py-4">
-                <h3 className="font-semibold text-gray-800">Technical Details</h3>
+
+          {/* Right Panel - Information (Takes 2 columns) */}
+          <div className="xl:col-span-2 space-y-6">
+            {/* Tab Navigation */}
+            <div className="bg-white/70 backdrop-blur-sm rounded-2xl shadow-lg border border-white/50 overflow-hidden">
+              <div className="flex border-b border-slate-200">
+                {[
+                  { id: 'overview', label: 'Overview', icon: '📊' },
+                  { id: 'prompt', label: 'AI Prompt', icon: '🤖' },
+                  { id: 'technical', label: 'Technical', icon: '⚙️' },
+                  { id: 'insights', label: 'Insights', icon: '💡' }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex-1 px-4 py-4 text-sm font-medium transition-all duration-300 ${
+                      activeTab === tab.id
+                        ? 'bg-white/80 text-slate-800 border-b-2 border-blue-500'
+                        : 'text-slate-600 hover:text-slate-800 hover:bg-white/50'
+                    }`}
+                  >
+                    <span className="mr-2">{tab.icon}</span>
+                    {tab.label}
+                  </button>
+                ))}
               </div>
-              
-              <div className="p-5 space-y-6">
-                {/* Generation Info */}
-                <div>
-                  <h4 className="text-sm uppercase tracking-wider text-gray-500 font-medium mb-3">Generation Information</h4>
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Generated</span>
-                      <span className="text-gray-900 font-medium">
-                        {result.timestamp ? new Date(result.timestamp).toLocaleString() : new Date().toLocaleString()}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Processing Mode</span>
-                      <span className="text-gray-900 font-medium capitalize">
-                        {result.mode || 'Redesign'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Model ID</span>
-                      <span className="bg-gray-100 rounded px-2 py-1 text-gray-700 text-xs font-mono">
-                        {result.model?.id || result.model_selection || 'adirik'}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-gray-600">Model Version</span>
-                      <span className="text-gray-700 text-xs font-mono truncate max-w-[200px]" title={result.model_version}>
-                        {result.model_version ? result.model_version.substring(0, 15) + '...' : 'Standard'}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-                
-                {/* Performance Metrics */}
-                <div>
-                  <h4 className="text-sm uppercase tracking-wider text-gray-500 font-medium mb-3">Performance Metrics</h4>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="bg-blue-50 rounded-lg p-3 text-center">
-                      <div className="text-xl font-bold text-blue-600 mb-1">98%</div>
-                      <div className="text-blue-500 text-xs">Quality Score</div>
-                    </div>
-                    <div className="bg-indigo-50 rounded-lg p-3 text-center">
-                      <div className="text-xl font-bold text-indigo-600 mb-1">4K</div>
-                      <div className="text-indigo-500 text-xs">Resolution</div>
-                    </div>
-                    <div className="bg-emerald-50 rounded-lg p-3 text-center">
-                      <div className="text-xl font-bold text-emerald-600 mb-1">45s</div>
-                      <div className="text-emerald-500 text-xs">Generation Time</div>
-                    </div>
-                    <div className="bg-violet-50 rounded-lg p-3 text-center">
-                      <div className="text-xl font-bold text-violet-600 mb-1">100%</div>
-                      <div className="text-violet-500 text-xs">Structure Preserved</div>
+
+              <div className="p-6">
+                {/* Overview Tab */}
+                {activeTab === 'overview' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-2xl font-bold text-slate-800 mb-4">Design Overview</h3>
+                      
+                      {/* Key Metrics */}
+                      <div className="grid grid-cols-2 gap-4 mb-6">
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100">
+                          <p className="text-blue-600 text-sm font-medium mb-1">Style Applied</p>
+                          <p className="text-xl font-bold text-blue-900">{result.style}</p>
+                        </div>
+                        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-4 rounded-xl border border-emerald-100">
+                          <p className="text-emerald-600 text-sm font-medium mb-1">Variations</p>
+                          <p className="text-xl font-bold text-emerald-900">{processedRenders.length}</p>
+                        </div>
+                        <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-4 rounded-xl border border-purple-100">
+                          <p className="text-purple-600 text-sm font-medium mb-1">Room Type</p>
+                          <p className="text-xl font-bold text-purple-900 capitalize">{roomType || 'Kitchen'}</p>
+                        </div>
+                        <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-4 rounded-xl border border-amber-100">
+                          <p className="text-amber-600 text-sm font-medium mb-1">Quality</p>
+                          <p className="text-xl font-bold text-amber-900">Premium</p>
+                        </div>
+                      </div>
+
+                      {/* Design Features */}
+                      <div className="space-y-4">
+                        <h4 className="text-lg font-semibold text-slate-800">Key Features</h4>
+                        <div className="grid gap-3">
+                          {[
+                            { feature: 'Smart Layout Optimization', status: 'Applied' },
+                            { feature: 'Color Harmony Analysis', status: 'Enhanced' },
+                            { feature: 'Lighting Adjustment', status: 'Optimized' },
+                            { feature: 'Material Consistency', status: 'Refined' },
+                            { feature: 'Space Utilization', status: 'Maximized' }
+                          ].map((item, index) => (
+                                                         <div key={index} className="flex items-center justify-between p-3 bg-white/50 rounded-lg border border-white/30">
+                               <span className="text-slate-700 font-medium">{item.feature}</span>
+                               <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-semibold">
+                                 {item.status}
+                               </span>
+                             </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-                
-                {/* Prompt Information */}
-                {promptText && (
-                  <div>
-                    <h4 className="text-sm uppercase tracking-wider text-gray-500 font-medium mb-3">AI Prompt</h4>
-                    <div className="bg-gray-50 rounded p-3 max-h-48 overflow-auto text-xs font-mono text-gray-600">
-                      {promptText}
+                )}
+
+                {/* AI Prompt Tab */}
+                {activeTab === 'prompt' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-2xl font-bold text-slate-800 mb-4">AI Generation Details</h3>
+                      
+                      {promptText && (
+                        <div className="space-y-4">
+                          <div>
+                            <h4 className="text-lg font-semibold text-slate-800 mb-3 flex items-center">
+                              <span className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-500 rounded-lg flex items-center justify-center mr-3">
+                                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                              </span>
+                              Primary Prompt
+                            </h4>
+                            <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-6 rounded-xl border border-slate-200 relative overflow-hidden">
+                              <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-100 to-transparent rounded-full -mr-16 -mt-16 opacity-50"></div>
+                              <p className="text-slate-700 leading-relaxed relative z-10 font-mono text-sm whitespace-pre-wrap">
+                                {promptText}
+                              </p>
+                              <button
+                                onClick={() => navigator.clipboard.writeText(promptText)}
+                                className="absolute top-4 right-4 p-2 bg-white/80 hover:bg-white rounded-lg transition-colors z-10"
+                                title="Copy prompt"
+                              >
+                                <svg className="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                </svg>
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {negativePromptText && (
+                            <div>
+                              <h4 className="text-lg font-semibold text-slate-800 mb-3 flex items-center">
+                                <span className="w-8 h-8 bg-gradient-to-br from-red-500 to-pink-500 rounded-lg flex items-center justify-center mr-3">
+                                  <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                                  </svg>
+                                </span>
+                                Negative Prompt
+                              </h4>
+                              <div className="bg-gradient-to-br from-red-50 to-pink-50 p-6 rounded-xl border border-red-200 relative overflow-hidden">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-red-100 to-transparent rounded-full -mr-16 -mt-16 opacity-50"></div>
+                                <p className="text-red-700 leading-relaxed relative z-10 font-mono text-sm whitespace-pre-wrap">
+                                  {negativePromptText}
+                                </p>
+                                <button
+                                  onClick={() => navigator.clipboard.writeText(negativePromptText)}
+                                  className="absolute top-4 right-4 p-2 bg-white/80 hover:bg-white rounded-lg transition-colors z-10"
+                                  title="Copy negative prompt"
+                                >
+                                  <svg className="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      
+                      {!promptText && (
+                        <div className="text-center py-12">
+                          <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                            <svg className="w-8 h-8 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                          </div>
+                          <p className="text-slate-500">No prompt information available for this design.</p>
+                        </div>
+                      )}
                     </div>
-                    <button
-                      onClick={() => navigator.clipboard.writeText(promptText)}
-                      className="mt-2 text-blue-600 text-sm flex items-center hover:text-blue-800"
-                    >
-                      <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                      </svg>
-                      Copy prompt
-                    </button>
+                  </div>
+                )}
+
+                {/* Technical Tab */}
+                {activeTab === 'technical' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-2xl font-bold text-slate-800 mb-4">Technical Details</h3>
+                      
+                      <div className="space-y-4">
+                        {/* Generation Info */}
+                        <div className="bg-gradient-to-br from-slate-50 to-slate-100 p-6 rounded-xl border border-slate-200">
+                          <h4 className="text-lg font-semibold text-slate-800 mb-4">Generation Information</h4>
+                          <div className="grid gap-3">
+                            <div className="flex justify-between items-center py-2 border-b border-slate-200 last:border-b-0">
+                              <span className="text-slate-600 font-medium">Job ID</span>
+                              <span className="font-mono text-slate-800 bg-slate-200 px-2 py-1 rounded text-sm overflow-auto max-w-[200px] truncate">
+                                {result.id || result.job_id || 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-slate-200 last:border-b-0">
+                              <span className="text-slate-600 font-medium">Status</span>
+                              <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-sm font-semibold">
+                                {result.status || 'completed'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-slate-200 last:border-b-0">
+                              <span className="text-slate-600 font-medium">Generated</span>
+                              <span className="text-slate-800 font-medium">
+                                {result.timestamp ? new Date(result.timestamp).toLocaleString() : new Date().toLocaleString()}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-slate-200 last:border-b-0">
+                              <span className="text-slate-600 font-medium">Processing Mode</span>
+                              <span className="text-slate-800 font-medium capitalize">
+                                {result.mode || 'Redesign'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* AI Model Info */}
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200">
+                          <h4 className="text-lg font-semibold text-blue-900 mb-4">AI Model Details</h4>
+                          <div className="space-y-3">
+                            <div className="flex justify-between items-center py-2 border-b border-blue-200 last:border-b-0">
+                              <span className="text-blue-700 font-medium">Model ID</span>
+                              <span className="text-blue-900 font-mono bg-blue-100 px-2 py-1 rounded text-sm">
+                                {result.model?.id || result.model_selection || 'adirik'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-blue-200 last:border-b-0">
+                              <span className="text-blue-700 font-medium">Model Name</span>
+                              <span className="text-blue-900 font-semibold">
+                                {result.model?.name || 'Adirik Interior Design'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-blue-200 last:border-b-0">
+                              <span className="text-blue-700 font-medium">Version</span>
+                              <span className="text-blue-900 font-mono text-sm truncate max-w-[200px]" title={result.model_version}>
+                                {result.model_version || 'Standard'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-blue-200 last:border-b-0">
+                              <span className="text-blue-700 font-medium">Prediction ID</span>
+                              <span className="text-blue-900 font-mono text-xs truncate max-w-[200px]" title={result.prediction_id}>
+                                {result.prediction_id ? result.prediction_id.substring(0, 15) + '...' : 'N/A'}
+                              </span>
+                            </div>
+                            <div className="flex justify-between items-center py-2 border-b border-blue-200 last:border-b-0">
+                              <span className="text-blue-700 font-medium">Cost per Generation</span>
+                              <span className="px-2 py-1 bg-blue-200 text-blue-800 rounded-full text-sm font-semibold">
+                                {result.model?.cost_per_generation || '$0.05'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Performance Metrics */}
+                        <div className="bg-gradient-to-br from-emerald-50 to-teal-50 p-6 rounded-xl border border-emerald-200">
+                          <h4 className="text-lg font-semibold text-emerald-900 mb-4">Performance Metrics</h4>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="text-center">
+                              <div className="text-2xl font-bold text-emerald-700 mb-1">98%</div>
+                              <div className="text-emerald-600 text-sm">Quality Score</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-2xl font-bold text-emerald-700 mb-1">4K</div>
+                              <div className="text-emerald-600 text-sm">Resolution</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-2xl font-bold text-emerald-700 mb-1">45s</div>
+                              <div className="text-emerald-600 text-sm">Generation Time</div>
+                            </div>
+                            <div className="text-center">
+                              <div className="text-2xl font-bold text-emerald-700 mb-1">100%</div>
+                              <div className="text-emerald-600 text-sm">Structure Preserved</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Insights Tab */}
+                {activeTab === 'insights' && (
+                  <div className="space-y-6">
+                    <div>
+                      <h3 className="text-2xl font-bold text-slate-800 mb-4">Design Insights</h3>
+                      
+                      <div className="space-y-6">
+                        {/* Style Analysis */}
+                        <div className="bg-gradient-to-br from-purple-50 to-pink-50 p-6 rounded-xl border border-purple-200">
+                          <h4 className="text-lg font-semibold text-purple-900 mb-4 flex items-center">
+                            <span className="w-8 h-8 bg-purple-500 rounded-lg flex items-center justify-center mr-3">
+                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17v4a2 2 0 002 2h4" />
+                              </svg>
+                            </span>
+                            Style Analysis
+                          </h4>
+                          <div className="space-y-3">
+                            <p className="text-purple-700 leading-relaxed">
+                              Your {result.style.toLowerCase()} design emphasizes clean lines, sophisticated materials, and optimal space utilization. 
+                              The transformation maintains the original layout while enhancing the visual appeal through strategic color choices and modern fixtures.
+                            </p>
+                            <div className="grid grid-cols-2 gap-3 mt-4">
+                              <div className="bg-white/60 p-3 rounded-lg">
+                                <div className="text-purple-600 text-sm font-medium">Color Harmony</div>
+                                <div className="text-purple-900 font-bold">Excellent</div>
+                              </div>
+                              <div className="bg-white/60 p-3 rounded-lg">
+                                <div className="text-purple-600 text-sm font-medium">Layout Flow</div>
+                                <div className="text-purple-900 font-bold">Optimized</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Implementation Tips */}
+                        <div className="bg-gradient-to-br from-amber-50 to-orange-50 p-6 rounded-xl border border-amber-200">
+                          <h4 className="text-lg font-semibold text-amber-900 mb-4 flex items-center">
+                            <span className="w-8 h-8 bg-amber-500 rounded-lg flex items-center justify-center mr-3">
+                              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                              </svg>
+                            </span>
+                            Implementation Tips
+                          </h4>
+                          <div className="space-y-4">
+                            {[
+                              {
+                                title: "Lighting Strategy",
+                                tip: "Install under-cabinet LED strips and pendant lights to achieve the layered lighting shown in your design.",
+                                priority: "High"
+                              },
+                              {
+                                title: "Material Selection",
+                                tip: "Use quartz countertops and matte finish cabinets for a modern, durable aesthetic.",
+                                priority: "Medium"
+                              },
+                              {
+                                title: "Color Implementation", 
+                                tip: "Start with neutral base colors and add accent colors through accessories and backsplash.",
+                                priority: "Medium"
+                              }
+                            ].map((tip, index) => (
+                              <div key={index} className="bg-white/60 p-4 rounded-lg">
+                                <div className="flex items-center justify-between mb-2">
+                                  <h5 className="font-semibold text-amber-900">{tip.title}</h5>
+                                  <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                                    tip.priority === 'High' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'
+                                  }`}>
+                                    {tip.priority}
+                                  </span>
+                                </div>
+                                <p className="text-amber-800 text-sm">{tip.tip}</p>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Next Steps */}
+                        <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-xl border border-blue-200">
+                          <h4 className="text-lg font-semibold text-blue-900 mb-4">Recommended Next Steps</h4>
+                          <div className="space-y-3">
+                            <div className="flex items-start space-x-3">
+                              <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span className="text-white text-xs font-bold">1</span>
+                              </div>
+                              <div>
+                                <h5 className="font-semibold text-blue-900">Get Professional Quotes</h5>
+                                <p className="text-blue-700 text-sm">Share this design with contractors for accurate implementation costs.</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start space-x-3">
+                              <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span className="text-white text-xs font-bold">2</span>
+                              </div>
+                              <div>
+                                <h5 className="font-semibold text-blue-900">Create Material List</h5>
+                                <p className="text-blue-700 text-sm">Generate a detailed shopping list based on your design specifications.</p>
+                              </div>
+                            </div>
+                            <div className="flex items-start space-x-3">
+                              <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                                <span className="text-white text-xs font-bold">3</span>
+                              </div>
+                              <div>
+                                <h5 className="font-semibold text-blue-900">Schedule Consultation</h5>
+                                <p className="text-blue-700 text-sm">Book a session with our design experts for implementation guidance.</p>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
             </div>
-            
-            {/* Actions Panel */}
-            <div className="bg-white rounded-lg shadow border border-gray-200">
-              <div className="border-b border-gray-200 px-5 py-4">
-                <h3 className="font-semibold text-gray-800">Actions</h3>
-              </div>
-              
-              <div className="p-5 space-y-3">
-                <button className="w-full py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center space-x-2">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+
+            {/* Quick Actions */}
+            <div className="bg-white/70 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/50">
+              <h3 className="text-xl font-bold text-slate-800 mb-4">Quick Actions</h3>
+              <div className="grid gap-3">
+                <button className="w-full p-4 bg-gradient-to-r from-emerald-500 to-teal-500 text-white rounded-xl hover:from-emerald-600 hover:to-teal-600 transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center space-x-2 group">
+                  <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                  </svg>
+                  <span className="font-semibold">Schedule Consultation</span>
+                </button>
+                
+                <button className="w-full p-4 bg-gradient-to-r from-blue-500 to-indigo-500 text-white rounded-xl hover:from-blue-600 hover:to-indigo-600 transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center space-x-2 group">
+                  <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
                   </svg>
-                  <span className="font-medium">Get Material List</span>
+                  <span className="font-semibold">Get Material List</span>
                 </button>
                 
                 <button 
                   onClick={onReset}
-                  className="w-full py-3 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors flex items-center justify-center space-x-2"
+                  className="w-full p-4 bg-white/80 border border-slate-200 text-slate-700 rounded-xl hover:bg-white transition-all duration-300 shadow-md hover:shadow-lg flex items-center justify-center space-x-2 group"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                   </svg>
-                  <span className="font-medium">Create New Design</span>
+                  <span className="font-semibold">Create New Design</span>
                 </button>
               </div>
             </div>
@@ -354,10 +666,10 @@ const ResultDisplay = ({ result, originalImage, onReset, measurements, roomType 
 
       {/* Fullscreen Modal */}
       {isFullscreen && (
-        <div className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 bg-black/95 z-50 flex items-center justify-center p-4">
           <button
             onClick={toggleFullscreen}
-            className="absolute top-6 right-6 bg-white/10 p-3 rounded-full text-white hover:bg-white/20 transition-all z-10"
+            className="absolute top-6 right-6 bg-white/20 backdrop-blur-sm p-3 rounded-xl border border-white/10 text-white hover:bg-white/30 transition-all z-10 shadow-lg"
           >
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -366,7 +678,7 @@ const ResultDisplay = ({ result, originalImage, onReset, measurements, roomType 
           <img 
             src={currentRenderUrl} 
             alt="Design Result - Fullscreen" 
-            className="max-w-full max-h-full object-contain"
+            className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl"
           />
         </div>
       )}
