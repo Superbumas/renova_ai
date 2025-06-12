@@ -98,19 +98,22 @@ def generate_design():
             
             # Generate prompts
             measurement_context = create_measurement_context(measurements, room_dimensions) if measurements else None
-            prompts = ai_service.generate_prompts(
-                style=style,
+            positive_prompt, negative_prompt = ai_service.generate_comprehensive_prompt(
                 mode=mode,
-                measurement_context=measurement_context,
-                inspiration_image=inspiration_image
+                style=style,
+                room_type=measurements.get('roomType', 'kitchen') if measurements else 'kitchen',
+                ai_intensity=ai_intensity,
+                measurements=measurements,
+                inspiration_description=None,
+                room_analysis=None
             )
             
             # Start Replicate prediction
             prediction = replicate_client.predictions.create(
                 version="stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
                 input={
-                    "prompt": prompts['positive'],
-                    "negative_prompt": prompts['negative'],
+                    "prompt": positive_prompt,
+                    "negative_prompt": negative_prompt,
                     "image": processed_image,
                     "num_outputs": num_renders,
                     "scheduler": "K_EULER",
@@ -124,8 +127,8 @@ def generate_design():
             # Update job with prediction info
             job.prediction_id = prediction.id
             job.model_version = prediction.version
-            job.prompt = prompts['positive']
-            job.negative_prompt = prompts['negative']
+            job.prompt = positive_prompt
+            job.negative_prompt = negative_prompt
             job.status = 'processing'
             db_service.update_job(job.id, job.to_dict())
             
