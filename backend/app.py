@@ -39,7 +39,7 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={
     r"/api/*": {
-        "origins": os.getenv('FRONTEND_URL', 'http://localhost:3000'),
+        "origins": os.getenv('FRONTEND_URL', 'https://renova.andrius.cloud'),
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization"]
     }
@@ -202,7 +202,7 @@ def health_check():
         'environment': {
             'upload_folder': app.config['UPLOAD_FOLDER'],
             'max_content_length': app.config['MAX_CONTENT_LENGTH'],
-            'cors_origin': os.getenv('FRONTEND_URL', 'http://localhost:3000')
+            'cors_origin': os.getenv('FRONTEND_URL', 'https://renova.andrius.cloud')
         }
     }
     
@@ -534,7 +534,7 @@ logger.info(f"🎨 AI Service: {'✅ Initialized' if ai_service else '❌ Failed
 logger.info(f"🖼️ Image Processor: {'✅ Initialized' if image_processor else '❌ Failed'}")
 logger.info(f"📐 Blueprint Service: {'✅ Initialized' if blueprint_service else '❌ Failed'}")
 logger.info(f"📁 Upload Folder: {app.config['UPLOAD_FOLDER']}")
-logger.info(f"🌐 CORS Origin: {os.getenv('FRONTEND_URL', 'http://localhost:3000')}")
+logger.info(f"🌐 CORS Origin: {os.getenv('FRONTEND_URL', 'https://renova.andrius.cloud')}")
 logger.info("=== STARTUP COMPLETE ===")
 
 if __name__ == '__main__':
