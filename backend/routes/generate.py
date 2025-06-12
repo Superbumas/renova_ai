@@ -31,7 +31,8 @@ def generate_design():
         numRenders: int,
         highQuality: bool,
         privateRender: bool,
-        advancedMode: bool
+        advancedMode: bool,
+        modelType: string
     }
     """
     logger.info("=== GENERATE DESIGN REQUEST RECEIVED ===")
@@ -53,6 +54,7 @@ def generate_design():
         high_quality = data.get('highQuality', False)
         private_render = data.get('privateRender', False)
         advanced_mode = data.get('advancedMode', False)
+        model_selection = data.get('modelType', 'adirik')  # Default to adirik model
         
         if not image_data or not mode or not style:
             return jsonify({'error': 'Missing required parameters'}), 400
@@ -71,6 +73,7 @@ def generate_design():
             'high_quality': high_quality,
             'private_render': private_render,
             'advanced_mode': advanced_mode,
+            'model_selection': model_selection,
             'room_type': measurements.get('roomType') if measurements else None,
             'room_dimensions': room_dimensions,
             'spatial_layout': measurements.get('spatialLayout') if measurements else None
@@ -107,25 +110,59 @@ def generate_design():
                 inspiration_description=inspiration_image
             )
             
-            # Start Replicate prediction
-            prediction = replicate_client.predictions.create(
-                version="stability-ai/sdxl:39ed52f2a78e934b3ba6e2a89f5b1c712de7dfea535525255b1aa35c5565e08b",
-                input={
+            # Select model version based on user preference
+            if model_selection == 'erayyavuz':
+                model_version = "erayyavuz/interior-ai:e299c531485aac511610a878ef44b554381355de5ee032d109fcae5352f39fa9"
+                logger.info(f"Using erayyavuz/interior-ai model")
+                
+                # Parameters for erayyavuz model
+                model_input = {
+                    "image": processed_image,
                     "prompt": positive_prompt,
                     "negative_prompt": negative_prompt,
-                    "image": processed_image,
-                    "num_outputs": num_renders,
-                    "scheduler": "K_EULER",
-                    "num_inference_steps": 50,
-                    "guidance_scale": 7.5,
-                    "prompt_strength": 0.8,
-                    "high_noise_frac": 0.8 if high_quality else 0.5
+                    "strength": 0.8,
+                    "num_inference_steps": 60 if high_quality else 30,
+                    "guidance_scale": 15.0,
+                    "width": 1024 if high_quality else 768,
+                    "height": 1024 if high_quality else 768
                 }
+            else:
+                # Default to adirik model
+                model_version = "adirik/interior-design:76604baddc85b1b4616e1c6475eca080da339c8875bd4996705440484a6eac38"
+                logger.info(f"Using Adirik interior design model")
+                
+                # Parameters for adirik model
+                model_input = {
+                    "image": processed_image,
+                    "prompt": positive_prompt,
+                    "negative_prompt": negative_prompt,
+                    "prompt_strength": 0.8,
+                    "num_inference_steps": 60 if high_quality else 30,
+                    "guidance_scale": 15.0,
+                    "scheduler": "DPM_PLUS_PLUS_2M",
+                    "num_outputs": num_renders,
+                    "disable_safety_checker": True
+                }
+                
+                # Apply high-quality settings if requested
+                if high_quality:
+                    model_input.update({
+                        "width": 1024,
+                        "height": 1024,
+                        "guidance_scale": 20.0,
+                        "scheduler": "DDIM",
+                        "num_inference_steps": 85
+                    })
+            
+            # Start Replicate prediction
+            prediction = replicate_client.predictions.create(
+                version=model_version,
+                input=model_input
             )
             
             # Update job with prediction info
             job.prediction_id = prediction.id
-            job.model_version = prediction.version
+            job.model_version = model_version
             job.prompt = positive_prompt
             job.negative_prompt = negative_prompt
             job.status = 'processing'
