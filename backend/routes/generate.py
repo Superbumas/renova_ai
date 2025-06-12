@@ -7,7 +7,7 @@ from io import BytesIO
 from flask import Blueprint, request, jsonify, current_app
 from PIL import Image
 import numpy as np
-from utils.helpers import create_measurement_context
+from utils.helpers import create_measurement_context, sanitize_text
 from spatial_layout_engine import SpatialLayoutEngine
 import os
 
@@ -15,25 +15,6 @@ logger = logging.getLogger(__name__)
 
 # Create blueprint
 generate_bp = Blueprint('generate', __name__)
-
-def sanitize_text(text):
-    """Sanitize text input to ensure it contains only ASCII characters"""
-    if not text:
-        return text
-        
-    # Replace common non-ASCII characters with ASCII equivalents
-    replacements = {
-        'ą': 'a', 'č': 'c', 'ę': 'e', 'ė': 'e', 'į': 'i', 'š': 's', 'ų': 'u', 'ū': 'u', 'ž': 'z',
-        'Ą': 'A', 'Č': 'C', 'Ę': 'E', 'Ė': 'E', 'Į': 'I', 'Š': 'S', 'Ų': 'U', 'Ū': 'U', 'Ž': 'Z',
-        'ñ': 'n', 'á': 'a', 'é': 'e', 'í': 'i', 'ó': 'o', 'ú': 'u', 'ü': 'u',
-        'Ñ': 'N', 'Á': 'A', 'É': 'E', 'Í': 'I', 'Ó': 'O', 'Ú': 'U', 'Ü': 'U'
-    }
-    
-    for non_ascii, ascii_char in replacements.items():
-        text = text.replace(non_ascii, ascii_char)
-    
-    # As a final safety measure, filter out any remaining non-ASCII characters
-    return ''.join(char for char in text if ord(char) < 128)
 
 @generate_bp.route('/generate', methods=['POST'])
 def generate_design():
@@ -45,7 +26,7 @@ def generate_design():
         style: string, 
         inspirationImage: string, 
         measurements: array,
-        roomDimensions: object,  # NEW: Direct room dimensions
+        roomDimensions: object,
         aiIntensity: float,
         numRenders: int,
         highQuality: bool,
@@ -60,10 +41,7 @@ def generate_design():
         ai_service = current_app.config['AI_SERVICE']
         image_processor = current_app.config['IMAGE_PROCESSOR']
         replicate_client = current_app.config['REPLICATE_CLIENT']
-        job_storage = current_app.config['JOB_STORAGE']
-        
-        # Initialize spatial layout engine
-        spatial_engine = SpatialLayoutEngine()
+        db_service = current_app.config['DB_SERVICE']
         
         data = request.get_json()
         logger.info(f"Request data received: {list(data.keys()) if data else 'No data'}")
@@ -78,57 +56,28 @@ def generate_design():
         style = sanitize_text(data.get('style', 'Modern'))
         inspiration_image = data.get('inspirationImage')
         measurements = data.get('measurements', [])
-        room_dimensions = data.get('roomDimensions')  # NEW: Direct dimensions
+        room_dimensions = data.get('roomDimensions')
         room_type = sanitize_text(data.get('roomType', 'kitchen'))
+        ai_intensity = float(data.get('aiIntensity', 0.5))
+        num_renders = int(data.get('numRenders', 1))
+        high_quality = bool(data.get('highQuality', False))
+        private_render = bool(data.get('privateRender', False))
+        advanced_mode = bool(data.get('advancedMode', False))
+        model_selection = sanitize_text(data.get('modelType', 'adirik'))
         
         # Generate unique job ID
         job_id = str(uuid.uuid4())
         
         # Log sanitized inputs
         logger.info(f"Job {job_id}: Sanitized input - mode: {mode}, style: {style}, room_type: {room_type}")
-        
-        # Ensure style is in English (fallback translation at API level)
-        style_translations = {
-            # Lithuanian
-            'Šiuolaikinis': 'Contemporary',
-            'Modernus': 'Modern',
-            'Tradicinis': 'Traditional',
-            'Skandinaviškas': 'Scandinavian',
-            'Pramoninis': 'Industrial',
-            'Kaimo': 'Farmhouse',
-            'Prabangus': 'Luxury'
-        }
-        
-        # Translate style if needed and log the change
-        original_style = style
-        style = style_translations.get(style, style)
-        if original_style != style:
-            logger.info(f"Job {job_id}: Translated style from '{original_style}' to '{style}' for API compatibility")
-        
-        # Advanced parameters
-        ai_intensity = data.get('aiIntensity', 0.5)
-        num_renders = data.get('numRenders', 1)
-        high_quality = data.get('highQuality', False)
-        
-        # Model selection - NEW
-        model_selection = data.get('modelType', 'adirik')  # Default to adirik model
-        
-        # Force high quality for better results if not explicitly set
-        if 'highQuality' not in data:
-            high_quality = True
-            logger.info(f"Job {job_id}: Automatically enabling high quality mode for better results")
-        
-        private_render = data.get('privateRender', False)
-        advanced_mode = data.get('advancedMode', False)
-        
         logger.info(f"Parameters: mode={mode}, style={style}, room_type={room_type}")
         logger.info(f"Advanced: ai_intensity={ai_intensity}, num_renders={num_renders}, high_quality={high_quality}")
-        logger.info(f"Room dimensions provided: {room_dimensions is not None}")
+        logger.info(f"Room dimensions provided: {bool(room_dimensions)}")
         
-        # Validation
+        # Validate required parameters
         if not image_data:
-            logger.error("No image data provided")
-            return jsonify({'error': 'No image data provided'}), 400
+            logger.error("No image provided")
+            return jsonify({'error': 'Image is required'}), 400
         
         if not mode:
             logger.error("No mode specified")
@@ -162,68 +111,17 @@ def generate_design():
             logger.error(f"Job {job_id}: Image processing failed: {str(e)}")
             return jsonify({'error': f'Image processing failed: {str(e)}'}), 400
         
-        # Generate spatial layout if room dimensions provided
-        spatial_layout_data = None
-        controlnet_conditioning = None
-        
-        if room_dimensions and room_dimensions.get('width') and room_dimensions.get('length'):
-            logger.info(f"Job {job_id}: Generating spatial layout from dimensions...")
-            try:
-                # Generate layout from dimensions
-                spatial_layout_data = spatial_engine.generate_layout_from_dimensions(room_dimensions)
-                controlnet_conditioning = spatial_layout_data['controlnet_conditioning']
-                
-                logger.info(f"Job {job_id}: Spatial layout generated - {spatial_layout_data['layout_type']}")
-                logger.info(f"Job {job_id}: Layout efficiency: {spatial_layout_data['layout_feasibility']['efficiency_score']:.2f}")
-                
-                # Save ControlNet conditioning image
-                conditioning_path = f"uploads/{job_id}_conditioning.png"
-                controlnet_conditioning.save(conditioning_path)
-                
-            except Exception as e:
-                logger.error(f"Job {job_id}: Spatial layout generation failed: {str(e)}")
-                spatial_layout_data = None
-                controlnet_conditioning = None
-        
-        # Process measurements (fallback if no direct dimensions)
-        logger.info(f"Job {job_id}: Processing measurements...")
-        try:
-            measurement_context, scale_context = create_measurement_context(measurements)
-            logger.info(f"Job {job_id}: Measurement context created successfully")
-        except Exception as e:
-            logger.error(f"Job {job_id}: Measurement processing failed: {str(e)}")
-            measurement_context, scale_context = "", ""
-        
-        # Analyze inspiration image if provided
-        inspiration_style_description = None
-        if inspiration_image:
-            logger.info(f"Job {job_id}: Analyzing inspiration image...")
-            try:
-                inspiration_style_description = ai_service.analyze_inspiration_image(inspiration_image)
-                if inspiration_style_description:
-                    logger.info(f"Job {job_id}: Inspiration analysis successful")
-                else:
-                    logger.warning(f"Job {job_id}: Failed to analyze inspiration image")
-            except Exception as e:
-                logger.error(f"Job {job_id}: Inspiration analysis error: {str(e)}")
-        
-        # Generate comprehensive prompts with spatial constraints
+        # Generate comprehensive prompts
         logger.info(f"Job {job_id}: Generating comprehensive prompts...")
         try:
-            # Add spatial constraints to prompt generation
-            spatial_constraints = None
-            if spatial_layout_data:
-                spatial_constraints = spatial_layout_data['spatial_constraints']
-            
             positive_prompt, negative_prompt = ai_service.generate_comprehensive_prompt(
                 mode=mode,
                 style=style,
                 room_type=room_type,
                 ai_intensity=ai_intensity,
                 measurements=measurements,
-                inspiration_description=inspiration_style_description,
-                room_analysis=None,
-                spatial_constraints=spatial_constraints  # NEW: Pass spatial constraints
+                inspiration_description=None,
+                room_analysis=None
             )
             
             logger.info(f"Job {job_id}: Prompts generated successfully")
@@ -249,8 +147,9 @@ def generate_design():
         model_cost = model_info.get(model_selection, {}).get('cost_per_generation', 'Unknown')
         model_name = model_info.get(model_selection, {}).get('name', model_selection)
         
-        # Store job in progress
-        job_storage[job_id] = {
+        # Create job in database
+        job_data = {
+            'id': job_id,
             'status': 'processing',
             'mode': mode,
             'style': style,
@@ -259,19 +158,20 @@ def generate_design():
             'high_quality': high_quality,
             'private_render': private_render,
             'advanced_mode': advanced_mode,
-            'model_selection': model_selection,  # Store model selection
-            'model_name': model_name,            # Store model friendly name
-            'model_cost': model_cost,            # Store model cost
-            'inspiration_image': inspiration_image,
-            'inspiration_style_description': inspiration_style_description,
+            'model_selection': model_selection,
+            'model_name': model_name,
+            'model_cost': model_cost,
             'room_type': room_type,
             'prompt': positive_prompt,
             'negative_prompt': negative_prompt,
-            'spatial_layout': spatial_layout_data,
-            'room_dimensions': room_dimensions,
-            'result_url': None,
-            'error': None
+            'room_dimensions': room_dimensions
         }
+        
+        try:
+            db_service.create_job(job_data)
+        except Exception as e:
+            logger.error(f"Job {job_id}: Failed to create job in database: {str(e)}")
+            return jsonify({'error': 'Failed to create job'}), 500
         
         # Process image for AI generation
         logger.info(f"Job {job_id}: Processing image for AI generation...")
@@ -290,12 +190,9 @@ def generate_design():
         
         # Select model based on user choice
         if model_selection == 'erayyavuz':
-            # Use erayyavuz/interior-ai model
             model_version = "erayyavuz/interior-ai:e299c531485aac511610a878ef44b554381355de5ee032d109fcae5352f39fa9"
             logger.info(f"Job {job_id}: Using erayyavuz/interior-ai model (Cost: $0.25 per generation)")
             
-            # Erayyavuz model-specific parameters
-            # Get the absolute URL to the image file (production-ready)
             base_url = os.getenv('BACKEND_URL', 'https://renova.andrius.cloud')
             image_url = f"{base_url}/uploads/{job_id}.png"
             
@@ -303,7 +200,7 @@ def generate_design():
                 "image": image_url,
                 "prompt": positive_prompt,
                 "negative_prompt": negative_prompt,
-                "strength": model_params.get('prompt_strength', 0.8),  # Note: uses 'strength' not 'prompt_strength'
+                "strength": model_params.get('prompt_strength', 0.8),
                 "num_inference_steps": model_params.get('num_inference_steps', 60),
                 "guidance_scale": model_params.get('guidance_scale', 15),
                 "width": model_params.get('width', 768),
@@ -311,7 +208,6 @@ def generate_design():
                 "seed": model_params.get('seed')
             }
             
-            # Force high quality parameters for erayyavuz model
             if high_quality:
                 replicate_input.update({
                     "num_inference_steps": 85,
@@ -321,11 +217,9 @@ def generate_design():
                 })
                 
         else:
-            # Default to adirik/interior-design model
             model_version = "adirik/interior-design:76604baddc85b1b4616e1c6475eca080da339c8875bd4996705440484a6eac38"
             logger.info(f"Job {job_id}: Using Adirik interior design model")
             
-            # Set model parameters based on enhanced quality settings
             replicate_input = {
                 "image": f"data:image/png;base64,{image_data}",
                 "prompt": positive_prompt,
@@ -336,19 +230,18 @@ def generate_design():
                 "scheduler": model_params.get('scheduler', 'DPM_PLUS_PLUS_2M'),
                 "width": model_params.get('width', 768),
                 "height": model_params.get('height', 768),
-                "num_outputs": 1,  # Generate one high-quality image
-                "disable_safety_checker": True,  # Allow full creative freedom
+                "num_outputs": 1,
+                "disable_safety_checker": True,
                 "seed": model_params.get('seed')
             }
             
-            # Force high quality parameters for better results
             if high_quality:
                 replicate_input.update({
-                    "num_inference_steps": 85,  # Increased for maximum quality
+                    "num_inference_steps": 85,
                     "width": 1024,
                     "height": 1024,
-                    "guidance_scale": 20,  # Higher guidance scale for more detailed output
-                    "scheduler": "DDIM"  # Best quality but slower scheduler
+                    "guidance_scale": 20,
+                    "scheduler": "DDIM"
                 })
         
         # Log the selected model and parameters
@@ -365,8 +258,11 @@ def generate_design():
                 input=replicate_input
             )
             
-            job_storage[job_id]['prediction_id'] = prediction.id
-            job_storage[job_id]['model_version'] = model_version
+            # Update job with prediction info
+            db_service.update_job(job_id, {
+                'prediction_id': prediction.id,
+                'model_version': model_version
+            })
             
             logger.info(f"Job {job_id}: Replicate prediction started with ID: {prediction.id}")
             
@@ -376,7 +272,6 @@ def generate_design():
                 'prediction_id': prediction.id,
                 'status': 'processing',
                 'message': 'Design generation started successfully',
-                'spatial_layout': spatial_layout_data['layout_type'] if spatial_layout_data else None,
                 'estimated_time': '60-120 seconds'
             })
             
@@ -387,7 +282,7 @@ def generate_design():
             # Handle character encoding issues
             if "non-ASCII" in error_message or "UnicodeEncodeError" in error_message or "codec can't encode" in error_message:
                 logger.error(f"Job {job_id}: Detected character encoding issue - non-English characters in prompt")
-                job_storage[job_id].update({
+                db_service.update_job(job_id, {
                     'status': 'failed',
                     'error': 'Non-English characters detected in prompt. Please use English style names only.'
                 })
@@ -398,7 +293,7 @@ def generate_design():
                 })
             
             # Handle other errors
-            job_storage[job_id].update({
+            db_service.update_job(job_id, {
                 'status': 'failed',
                 'error': f'Prediction failed: {error_message}'
             })
@@ -417,6 +312,104 @@ def generate_design():
             'success': False,
             'error': error_msg
         }), 500
+
+@generate_bp.route('/results/<job_id>', methods=['GET'])
+def get_results(job_id):
+    """Get results for a specific job"""
+    logger.info(f"Results requested for job: {job_id}")
+    
+    try:
+        db_service = current_app.config['DB_SERVICE']
+        replicate_client = current_app.config['REPLICATE_CLIENT']
+        
+        # Get job from database
+        job = db_service.get_job(job_id)
+        if not job:
+            return jsonify({'error': 'Job not found'}), 404
+        
+        # Check if this is a job with a prediction ID that needs checking
+        if job.get('prediction_id') and job.get('status') == 'processing' and replicate_client:
+            try:
+                # Check the Replicate prediction status
+                prediction = replicate_client.predictions.get(job['prediction_id'])
+                logger.info(f"Job {job_id} prediction status: {prediction.status}")
+                
+                if prediction.status == 'succeeded':
+                    # Update job with results
+                    result_url = prediction.output[0] if isinstance(prediction.output, list) else prediction.output
+                    db_service.update_job(job_id, {
+                        'status': 'completed',
+                        'result_url': result_url,
+                        'all_renders': [result_url] if result_url else []
+                    })
+                    logger.info(f"Job {job_id} completed successfully")
+                    
+                elif prediction.status == 'failed':
+                    # Update job with failure
+                    error_msg = getattr(prediction, 'error', 'Generation failed')
+                    db_service.update_job(job_id, {
+                        'status': 'failed',
+                        'error': str(error_msg)
+                    })
+                    logger.error(f"Job {job_id} failed: {error_msg}")
+                    
+                elif prediction.status == 'canceled':
+                    db_service.update_job(job_id, {
+                        'status': 'failed',
+                        'error': 'Generation was canceled'
+                    })
+                    logger.warning(f"Job {job_id} was canceled")
+                
+            except Exception as e:
+                logger.error(f"Error checking prediction {job.get('prediction_id')}: {str(e)}")
+        
+        # Get updated job data
+        job = db_service.get_job(job_id)
+        
+        # Return job status and any available results
+        result = {
+            'status': job.get('status', 'unknown'),
+            'job_id': job_id,
+            'mode': job.get('mode'),
+            'style': job.get('style'),
+            'timestamp': job.get('created_at'),
+            'model': {
+                'id': job.get('model_selection'),
+                'name': job.get('model_name'),
+                'cost_per_generation': job.get('model_cost')
+            },
+            'prompt_info': {
+                'prompt': job.get('prompt'),
+                'negative_prompt': job.get('negative_prompt')
+            }
+        }
+        
+        # Add result URL if available
+        if job.get('result_url'):
+            result['result_url'] = job['result_url']
+        
+        # Add error if present
+        if job.get('error'):
+            result['error'] = job.get('error')
+        
+        logger.info(f"Returning results for job {job_id}: status={result['status']}")
+        
+        return jsonify(result)
+        
+    except Exception as e:
+        logger.error(f"Error getting results for job {job_id}: {str(e)}")
+        return jsonify({'error': f'Error getting results: {str(e)}'}), 500
+
+@generate_bp.route('/jobs', methods=['GET'])
+def list_jobs():
+    """List all processing jobs (for debugging/admin)"""
+    try:
+        db_service = current_app.config['DB_SERVICE']
+        jobs = db_service.list_jobs()
+        return jsonify({'jobs': jobs})
+    except Exception as e:
+        logger.error(f"Error listing jobs: {str(e)}")
+        return jsonify({'error': f'Error listing jobs: {str(e)}'}), 500
 
 @generate_bp.route('/generate-layout', methods=['POST'])
 def generate_layout():
@@ -544,7 +537,7 @@ def refine_design():
         ai_service = current_app.config['AI_SERVICE']
         image_processor = current_app.config['IMAGE_PROCESSOR']
         replicate_client = current_app.config['REPLICATE_CLIENT']
-        job_storage = current_app.config['JOB_STORAGE']
+        db_service = current_app.config['DB_SERVICE']
         
         data = request.get_json()
         
@@ -564,13 +557,20 @@ def refine_design():
         job_id = str(uuid.uuid4())
         
         # Store initial job info
-        job_storage[job_id] = {
+        job_data = {
+            'id': job_id,
             'status': 'processing',
             'created_at': datetime.now().isoformat(),
             'type': 'refinement',
             'base_image_url': base_image_url,
             'refinement_request': refinement_request
         }
+        
+        try:
+            db_service.create_job(job_data)
+        except Exception as e:
+            logger.error(f"Job {job_id}: Failed to create job in database: {str(e)}")
+            return jsonify({'error': 'Failed to create job'}), 500
         
         # Create specialized refinement prompt
         refinement_prompt = f"""
@@ -647,7 +647,7 @@ def refine_design():
             )
             
             # Update job storage with prediction info
-            job_storage[job_id].update({
+            db_service.update_job(job_id, {
                 'prediction_id': prediction.id,
                 'model_used': model_id,
                 'input_params': model_input,
@@ -665,8 +665,10 @@ def refine_design():
             
         except Exception as e:
             logger.error(f"Error starting refinement prediction: {str(e)}")
-            job_storage[job_id]['status'] = 'failed'
-            job_storage[job_id]['error'] = str(e)
+            db_service.update_job(job_id, {
+                'status': 'failed',
+                'error': str(e)
+            })
             return jsonify({'error': f'Error starting refinement: {str(e)}'}), 500
             
     except Exception as e:

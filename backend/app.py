@@ -15,12 +15,10 @@ from datetime import datetime
 import cv2
 import numpy as np
 from io import BytesIO
-
-# Import our modular services
 from services.ai_service import AIService
 from services.image_processor import ImageProcessor
 from services.blueprint_service import BlueprintService
-from utils.helpers import extract_number, extract_pinterest_image_url
+from services.db_service import DatabaseService
 from routes.generate import generate_bp
 from routes.analysis import analysis_bp
 
@@ -39,7 +37,13 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 app = Flask(__name__)
-CORS(app, origins=[os.getenv('FRONTEND_URL', 'https://renova.andrius.cloud')])
+CORS(app, resources={
+    r"/api/*": {
+        "origins": os.getenv('FRONTEND_URL', 'http://localhost:3000'),
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
 
 # Configure upload settings
 app.config['MAX_CONTENT_LENGTH'] = int(os.getenv('MAX_CONTENT_LENGTH', 16777216))  # 16MB
@@ -101,19 +105,19 @@ ai_service = AIService(openai_client)
 image_processor = ImageProcessor()
 blueprint_service = BlueprintService(openai_client)
 
+# Initialize database service
+db_service = DatabaseService(os.getenv('DATABASE_URL'))
+
 # Create uploads directory
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
-# In-memory storage for job tracking
-job_storage = {}
-
-# Make services available to blueprints
+# Store services in app config
+app.config['REPLICATE_CLIENT'] = replicate_client
+app.config['OPENAI_CLIENT'] = openai_client
 app.config['AI_SERVICE'] = ai_service
 app.config['IMAGE_PROCESSOR'] = image_processor
 app.config['BLUEPRINT_SERVICE'] = blueprint_service
-app.config['REPLICATE_CLIENT'] = replicate_client
-app.config['OPENAI_CLIENT'] = openai_client
-app.config['JOB_STORAGE'] = job_storage
+app.config['DB_SERVICE'] = db_service
 
 # Register blueprints
 app.register_blueprint(generate_bp, url_prefix='/api')
@@ -177,6 +181,10 @@ def health_check():
             'blueprint_service': {
                 'status': '✅ Initialized' if blueprint_service else '❌ Failed',
                 'available': blueprint_service is not None
+            },
+            'database': {
+                'status': '✅ Initialized' if db_service else '❌ Failed',
+                'available': db_service is not None
             }
         },
         'models': {
